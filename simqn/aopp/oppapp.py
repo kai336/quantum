@@ -1,14 +1,25 @@
+import random
+import uuid
+import importlib
 from typing import Dict, Optional, List
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
-from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.models.delay.delay import DelayModel
+from qns.simulator.ts import Time
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork
-from qns.simulator.ts import Time
 import qns.utils.log as log
-import random
+import qns.network
+from requests import Request
+from qchannel import QuantumChannel
+
+qns.network.Request = Request
+importlib.reload(qns.network)
+
+
+
 
 fidelity = 0.8
 memory_capacity = 5
@@ -35,6 +46,15 @@ N = 20
 L = 6
 p_swap = 0.8
 
+#todo: recreate this app
+#override class: QuantumChannel, Request, QuantumNetwork
+#
+#replace established -> list of qc
+
+def make_qc(src: QNode, dest: QNode, born: Time):
+    #build a quantum channel between src<->dest
+    return QuantumChannel2(name=uuid.uuid4().__str__(), node_list=[src, dest], born=born)
+
 class OpportunistcApp(Application):
     def __init__(self,
                  p_gen: float = p_gen, p_swap: float = p_swap,
@@ -58,7 +78,7 @@ class OpportunistcApp(Application):
         self.net: QuantumNetwork = None
         self.own: QNode = None
         self.memory: QuantumMemory = None
-           
+
         #self.add_handler(self.RecvQubitHandler, [RecvQubitPacket])
    
     def install(self, node: QNode, simulator: Simulator):
@@ -296,6 +316,7 @@ class OpportunistcApp(Application):
 
     def all_swapping(self, src: QNode, dest: QNode, idx: int):
         for req in self.net.requests:
+            pass
 
         
 
