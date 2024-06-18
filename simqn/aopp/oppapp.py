@@ -21,30 +21,30 @@ importlib.reload(qns.network)
 
 
 
-fidelity = 0.8
-memory_capacity = 5
-memory_time = 0.1
+FIDELITY = 0.8
+MEMORY_CAPACITY = 5
+MEMORY_TIME = 0.1
 
-drop_rate = 0.0 #p_genでもつれ生成の確率を管理しているので０でok
+DROP_RATE = 0.0 #p_genでもつれ生成の確率を管理しているので０でok
 
-lifetime = 30
-decoherence_rate = 1 / lifetime
+LIFETIME = 30
+DECOHERENCE_RATE = 1 / LIFETIME
 
-gen_rate = 1 # １秒あたりのもつれ生成チャレンジ回数
+GEN_RATE = 1 # １秒あたりのもつれ生成チャレンジ回数
 
-p_gen = 0.1 # もつれ生成成功確率
-p_swap = 0.8 # swapping成功確率
+P_GEN = 0.1 # もつれ生成成功確率
+P_SWAP = 0.8 # swapping成功確率
 
-nodes_number = 7
-qchannel_delay = 0.0
-cchannel_delay = 0.0
+NODES_NUMBER = 7
+QCHANNEL_DELAY = 0.0
+CCHANNEL_DELAY = 0.0
 
-request_number = 5
+REQUESTs_NUMBER = 5
 
 M = 5
 N = 20
 L = 6
-p_swap = 0.8
+P_SWAP = 0.8
 
 #todo: recreate this app
 #override class: QuantumChannel, Request, QuantumNetwork
@@ -53,15 +53,15 @@ p_swap = 0.8
 
 def make_qc(src: QNode, dest: QNode, born: Time):
     #build a quantum channel between src<->dest
-    return QuantumChannel2(name=uuid.uuid4().__str__(), node_list=[src, dest], born=born)
+    return QuantumChannel(name=uuid.uuid4().__str__(), node_list=[src, dest], born=born)
 
 class OpportunistcApp(Application):
     def __init__(self,
-                 p_gen: float = p_gen, p_swap: float = p_swap,
-                 gen_rate: int = gen_rate,
-                 drop_rate: Optional[float] = drop_rate,
-                 decoherence_rate: Optional[float] = decoherence_rate,
-                 lifetime: Optional[float] = lifetime,
+                 p_gen: float = P_GEN, p_swap: float = P_SWAP,
+                 gen_rate: int = GEN_RATE,
+                 drop_rate: Optional[float] = DROP_RATE,
+                 decoherence_rate: Optional[float] = DECOHERENCE_RATE,
+                 lifetime: Optional[float] = LIFETIME,
                  isopp: bool = False,
                  alpha: float = 0):
         super().__init__()
@@ -94,7 +94,7 @@ class OpportunistcApp(Application):
         try:
             self.net.established
             #log.debug(f"{self.own}net.established = {self.net.established}")
-        except:
+        except AttributeError:
             self.net.runtime = ts.sec
             self.net.established = []
             for req in self.net.requests:
