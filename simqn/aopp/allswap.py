@@ -48,9 +48,12 @@ class AllSwappingApp(Application):
         self.lifetime = lifetime
         self.opp_level = opp_level # 0->NOPP, 1->OPP, 2->All Swap
         self.own: QNode
+        self.net: QuantumNetwork
+        self.net.requests:
         self.simulator: Simulator
         self.adj_qc = [] # the list of QChannel
-        self.flags = {'is_entangled': False, 'is_swapped': False, 'can_swap': False}
+        self.can_swap: bool = False
+
 
     def install(self, node: QNode, simulator: Simulator) -> None:
         super().install(node, simulator)
@@ -65,16 +68,48 @@ class AllSwappingApp(Application):
             pass
         except AttributeError:
             self.net.initialized = True
+            self.init_net()
+    
+    def init_net(self) -> None:
+        self.init_qc()
+        self.init_progress_all()
+        self.init_req_status()
+        self.init_paths()
 
+    def init_qc(self) -> None:
+        for qc in self.net.qchannels:
+            qc.is_entangled = False
+            qc.born = self.simulator.ts
 
-    def get_paths_all(self, src: QNode, dest: QNode) -> List[QNode]:
-        # get list of nodes in single path
-        # change here to implement multipath algorithm
+    def init_progress_all(self) -> None:
+        for i, _ in enumerate(self.net.requests):
+            self.init_progress_single(i)
+    
+    def init_progress_single(self, idx_req) -> None:
+        self.net.requests[idx_req].progress = []
+
+    def init_req_status(self) -> None:
+            for req in self.net.requests:
+                req.succeed = False
+                req.canmove = False
+                req.pos = 0 # only used in opp
+                req.progress = []
+
+    def init_paths(self) -> None:
+        # set path
         for req in self.net.requests:
-            route_result = self.net.route.query(src=req.src, dest=req.dest)
+            req.paths = self.get_path_single(src=req.src, dest=req.dest) # change here to implement multipath algorithm         
+
+    def get_path_single(self, src: QNode, dest: QNode) -> List[QNode]:
+        route_result = self.net.route.query(src=src, dest=dest)
         try:
             return route_result[0][2]
         except IndexError:
             log.debug(f"[get_route_nodes] {self.own} no route found: src={src}, dest={dest}")
             raise Exception("No route found")
-        
+
+    
+    
+    
+    
+    
