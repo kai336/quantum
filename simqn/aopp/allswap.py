@@ -54,13 +54,12 @@ class AllSwappingApp(Application):
         self.adj_qc = [] # the list of QChannel
         self.can_swap: bool = False
 
-
     def install(self, node: QNode, simulator: Simulator) -> None:
         super().install(node, simulator)
         self.own: QNode = self._node # defined in super().install
         self.net = self.own.network
 
-        ts = simulator.ts # the start time of the simulator
+        self.get_adjacent_qchannels()
         
         # initialize the QuantumNetwork
         try:
@@ -70,11 +69,33 @@ class AllSwappingApp(Application):
             self.net.initialized = True
             self.init_net()
     
+    def get_adjacent_qchannels(self) -> None:
+        adj_qc = []
+        for qc in self.net.qchannels:
+            for node in qc.node_list:
+                if(node == self.own):
+                    adj_qc.append(qc)
+        self.adj_qc = adj_qc
+
+    def add_qchannel(self, node_list: List[QNode]) -> None:
+        name = 1 + len(self.net.qchannels) # for visibility
+        name = str(name) # use uuid when do expreriment
+        qc = QuantumChannel(name=name, node_list=node_list)
+        self.net.qchannels.append(qc)
+
+    def remove_qchannel(self, qc:QuantumChannel) -> None:
+        if qc in self.net.qchannels:
+            self.net.qchannels.remove(qc)
+        else:
+            # write log message for debug
+            pass
+
+
     def init_net(self) -> None:
         self.init_qc()
         self.init_progress_all()
         self.init_req_status()
-        self.init_paths()
+        self.get_paths()
 
     def init_qc(self) -> None:
         for qc in self.net.qchannels:
@@ -95,7 +116,7 @@ class AllSwappingApp(Application):
                 req.pos = 0 # only used in opp
                 req.progress = []
 
-    def init_paths(self) -> None:
+    def get_paths(self) -> None:
         # set path
         for req in self.net.requests:
             req.paths = self.get_path_single(src=req.src, dest=req.dest) # change here to implement multipath algorithm         
