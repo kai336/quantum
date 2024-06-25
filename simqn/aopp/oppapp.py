@@ -11,12 +11,6 @@ from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork
 import qns.utils.log as log
-import qns.network
-from requests import Request
-from qchannel import QuantumChannel
-
-qns.network.Request = Request
-importlib.reload(qns.network)
 
 
 
