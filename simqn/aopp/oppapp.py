@@ -10,6 +10,7 @@ from qns.simulator.ts import Time
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork
+from qns.entity.qchannel import QuantumChannel
 import qns.utils.log as log
 
 
