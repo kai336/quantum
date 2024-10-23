@@ -31,7 +31,7 @@ $$
 $\ket{\psi} = \frac{1}{\sqrt{2}}\ket{0}+\frac{1}{\sqrt{2}}\ket{1}=\begin{pmatrix}\frac{1}{\sqrt{2}} \\ \frac{1}{\sqrt{2}}\end{pmatrix}$
 
 ## 混合状態
-複数の純粋状態が確率的に混合している状態であり、密度行列で表現できる
+複数の純粋状態が確率的に混合している状態であり、純粋状態のもつ密度行列の組み合わせで表現できる
 ### 例：$\ket{0}, \ket{1}$ である確率がそれぞれ $p, 1-p$ であるとき
 $$\begin{align}
   \rho &= p\ket{0}\bra{0} + (1-p)\ket{1}\bra{1}\nonumber \\
@@ -39,8 +39,23 @@ $$\begin{align}
 \end{align}$$
 
 # fidelity(忠実度) とは
-$$F(\rho, \sigma) = \left( Tr\sqrt{\sqrt{\rho\sigma\sqrt{\rho}}}) \right)^2$$
-- $\rho, \sigma$ は密度行列
-- 2つの量子状態$\rho, \sigma$がどれだけ近い状態にあるかを計算する
-- ノイズの影響を受けてデコヒーレンスした量子状態(混合状態)がどれだけ理想の量子状態に近い状態を保っているか、という指標として用いられることが多い
-
+純粋状態$\ket{\psi}$と混合状態$\rho$
+$$F(\ket{\psi}, \rho) = \bra{\psi}\rho\ket{\psi}$$
+混合状態同士
+$$F(\rho, \sigma) = \left( Tr\sqrt{\sqrt{\rho}\sigma\sqrt{\rho}}) \right)^2$$
+- 2つの状態がどれだけ近い状態にあるかを計算する
+- ノイズの影響を受けてデコヒーレンスした量子状態(混合状態)がどれだけ理想の量子状態に近い状態を保っているか、という指標として用いられる
+## Werner States
+Bell状態にノイズを加えたモデル
+$$\rho_W=p\ket{\Phi_+}\bra{\Phi_+}+(1−p)I/4
+​$$
+- $p=1$のとき、Bell状態と一致
+- $p$が増加するほど完全に混合した状態 $I/4$ の項が増えてランダムな状態になる
+## Bell状態とのfidelity
+$$ \begin{align}
+F &= \bra{\Phi_+}\rho_W\ket{\Phi_+} \nonumber \\
+&= \bra{\Phi_+}\left( p\ket{\Phi_+}\bra{\Phi_+}+(1−p)\frac{I}{4} \right)\ket{\Phi_+} \nonumber \\
+&= p\bra{\Phi_+}\ket{\Phi_+}\bra{\Phi_+}\ket{\Phi_+} + (1-p) \bra{\Phi_+}\frac{I}{4}\ket{\Phi_+} \nonumber \\
+&= p + (1-p)\times\frac{1}{4}\bra{\Phi_+}\ket{\Phi_+} \nonumber \\
+&= p + \frac{1-p}{4} = \frac{3p+1}{4} \nonumber
+\end{align} $$

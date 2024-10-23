@@ -19,7 +19,10 @@ send_rate = 10
 nodes_number = 5
 delay = 0.01
 
-for init_fidelity in [1.0, 0.99, 0.98, 0.97, 0.96, 0.95]:
+init_fidelities = [1.0, 0.99, 0.98, 0.97, 0.96, 0.95]
+#init_fidelities = [0.98]
+
+for init_fidelity in init_fidelities:
 
     s = Simulator(0, 30, accuracy=10000000)
     log.install(s)
