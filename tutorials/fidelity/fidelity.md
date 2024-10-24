@@ -9,6 +9,7 @@ $$\ket{\psi} = \begin{pmatrix}\alpha_1 \\ \vdots \\ \alpha_n\end{pmatrix} \in \m
 密度行列 $`\rho`$ はある量子状態のもつ列ベクトル同士の外積
 
 $$\rho = \ket{\psi}\bra{\psi} =\begin{pmatrix}\alpha_1 \\ \vdots \\ \alpha_n\end{pmatrix} \begin{pmatrix}\alpha_1^* & \dots & \alpha_n^*\end{pmatrix} \in \mathbb{C}^{n^2} $$
+
 で定義される。
 
 ### １量子ビット系の例
@@ -42,10 +43,11 @@ $`\ket{\psi} = \frac{1}{\sqrt{2}}\ket{0}+\frac{1}{\sqrt{2}}\ket{1}=\begin{pmatri
 
 ## 混合状態
 複数の純粋状態が確率的に混合している状態であり、純粋状態のもつ密度行列の組み合わせで表現できる
-### 例：$\ket{0}, \ket{1}$ である確率がそれぞれ $p, 1-p$ であるとき
+### 例：$`\ket{0}, \ket{1}`$ である確率がそれぞれ $p, 1-p$ であるとき
+
 $$\begin{align}
   \rho &= p\ket{0}\bra{0} + (1-p)\ket{1}\bra{1}\nonumber \\
-&= p\begin{pmatrix}1&0\\0&0\end{pmatrix} + (1-p)\begin{pmatrix}0&0\\0&1\end{pmatrix}\nonumber \\&= \begin{pmatrix}p&0\\0&1-p\end{pmatrix} \nonumber
+&= p\begin{pmatrix}1&0 \\ 0&0\end{pmatrix} + (1-p)\begin{pmatrix}0&0 \\ 0&1\end{pmatrix}\nonumber \\ &= \begin{pmatrix}p&0 \\ 0&1-p\end{pmatrix} \nonumber
 \end{align}$$
 
 # fidelity(忠実度) とは
@@ -76,3 +78,27 @@ F &= \bra{\Phi_+}\rho_W\ket{\Phi_+} \nonumber \\
 &= p + \frac{1-p}{4} = \frac{3p+1}{4} \nonumber
 \end{align} $$
 
+# SimQNにおけるFidelityの扱い
+## Fidelity更新関数 `error_model()`
+`qns.qubit.core.backend`の`QubitModel`クラスでfidelityを更新する関数のモック`store_error_model`, `transfer_error_model`, `operate_error_model`, `measure_error_model`が宣言されている。それぞれ、量子メモリ、転送、操作、測定によるデコヒーレンスをシミュレーションするための関数であり、子クラスの用途に応じて定義される。
+
+例えば、子クラスの１つである`qns.models.epr`の`WernerStateEntanglement`では、`self.w`という属性でもつれ状態の純度を管理しており、`store_error_model`, `transfer_error_model`が定義されている。
+```python
+self.w = self.w * np.exp(-decoherence_rate * length)
+```
+
+$$
+w_{new} = w \times e^{-decoherence\_rate \times length}
+$$
+
+ここで、`w`とは先のWerner状態の式における $`p`$ を表している。つまり、この状態がBell状態である確率と捉えることができる。
+
+## どこで更新関数が呼び出されているか？
+### `store_error_model`
+量子メモリクラス`QuantumMemory`の読み出しメソッド`read()`のタイミングで更新
+### `transfer_error_model`
+量子通信路クラス`QuantumChannel`の送信メソッド`send()`のタイミングで更新
+### `operate_error_model`, `measure_error_model`
+量子ビットクラス`Qubit`の`operate()`, `measure()`のタイミングで更新
+
+## どこで`error_model`の定義をしているか？
