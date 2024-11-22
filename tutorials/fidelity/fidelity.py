@@ -19,6 +19,8 @@ send_rate = 10
 nodes_number = 5
 delay = 0.01
 
+length = 100 * 1000 # 単位はm
+
 init_fidelities = [1.0, 0.99, 0.98, 0.97, 0.96, 0.95]
 #init_fidelities = [0.98]
 
@@ -26,12 +28,19 @@ for init_fidelity in init_fidelities:
     s = Simulator(0, 30, accuracy=10000000)
     log.install(s)
     topo = LineTopology(nodes_number=nodes_number,
-                        qchannel_args={"delay": delay},
+                        qchannel_args={"delay": delay, "length": 100000},
                         cchannel_args={"delay": delay},
                         memory_args=[{
                             "capacity": memory_capacity,
                             "decoherence_rate": 0.2}],
                         nodes_apps=[EntanglementDistributionApp(init_fidelity=init_fidelity)])
+    
+    '''
+    EntanglementDistrubutionApp
+        フィデリティがinit_fidelityのwerner state entanglement(損失ありのbell pair)を生成
+        このappのなかでもつれのfidelityが更新される
+
+    '''
 
     net = QuantumNetwork(
         topo=topo, classic_topo=ClassicTopology.All, route=DijkstraRouteAlgorithm())
