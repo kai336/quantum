@@ -38,5 +38,3 @@ net = QuantumNetwork(
     topo=topo, classic_topo=ClassicTopology.All, route=DijkstraRouteAlgorithm()
 )
 net.build_route()
-
-print(net.route.route_table)
