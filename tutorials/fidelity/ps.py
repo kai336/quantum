@@ -21,18 +21,25 @@ class PSApp(Application):
                 init_fidelity: float = 0.99,
                 p_gen: float = 0.8,
                 p_swap: float = 0.8,
-                p_purification = 0.8,
-                send_rate: Optional[int] = None):
+                send_rate: Optional[int] = None,
+                lifetime: float = 12):
         super().__init__()
         self.init_fidelity = init_fidelity
         self.p_gen = p_gen
         self.p_swap = p_swap
-        self.p_purification = p_purification
-        self.send_rate = send_rate
-
+        self.gen_rate = send_rate
+        self.lifetime = lifetime
         self.net: QuantumNetwork = None
         self.own: QNode = None
         self.memory: QuantumMemory = None
 
         self.success = []
         self.send_count = 0
+    
+    def install(self, node: QNode, simulator: Simulator):
+        super().install(node, simulator)
+        self.own: QNode = self._node
+        self.memory: QuantumMemory = self.own.memories[0]
+        self.net = self.own.network
+        self.requests = self.net.requests
+        
