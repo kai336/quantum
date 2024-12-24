@@ -101,4 +101,4 @@ $$
 ### `operate_error_model`, `measure_error_model`
 量子ビットクラス`Qubit`の`operate()`, `measure()`のタイミングで更新
 
-## どこで`error_model`の定義をしているか？
+# purification
