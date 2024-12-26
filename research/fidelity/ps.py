@@ -29,7 +29,6 @@ class PSApp(Application):
                 decoherence_rate: float = 0.2,
                 p_gen: float = 0.8,
                 p_swap: float = 0.8,
-                gen_rate: Optional[int] = None,
                 lifetime: float = 12,
                 channel_number: int = 2):
         super().__init__()
@@ -37,7 +36,6 @@ class PSApp(Application):
         self.decoherence_rate = decoherence_rate
         self.p_gen = p_gen
         self.p_swap = p_swap
-        self.gen_rate = gen_rate
         self.lifetime = lifetime
         self.net: QuantumNetwork = None
         self.own: QNode = None
@@ -94,9 +92,8 @@ class PSApp(Application):
     def generate_entanglement(self):
         # add next event to the next time-slot
         tc = self.simulator.tc
-        if self.gen_rate is not None:
-            t = tc + Time(sec = 1 / self.gen_rate)
-            self.simulator.add_event(func_to_event(t, self.update_links, by=self))
+        t = Time(time_slot=tc.time_slot) + Time(time_slot=1)
+        self.simulator.add_event(func_to_event(t, self.update_links, by=self))
         # generate entanglement
         for link in self.adjacent:
             if not link.is_entangled:
@@ -112,9 +109,8 @@ class PSApp(Application):
     def update_links(self):
         # add next event to the next time-slot
         tc = self.simulator.tc
-        if self.gen_rate is not None:
-            t_time_slot = Time(time_slot=tc.time_slot) + Time(time_slot=1)
-            self.simulator.add_event(func_to_event(t_time_slot, self.swapping, by=self))
+        t_time_slot = Time(time_slot=tc.time_slot) + Time(time_slot=1)
+        self.simulator.add_event(func_to_event(t_time_slot, self.swap_routine, by=self))
         
         # check enantanlement lifetime
         for link in self.adjacent:
@@ -129,15 +125,33 @@ class PSApp(Application):
                 t = tc.sec - link.entangled_time.sec
                 link.current_fidelity = link.init_fidelity * np.exp(-t / self.lifetime)
                 log.debug(f"update_fidelity(after): {self.own}  {link.name} {link.is_entangled} {format(link.init_fidelity, '.4f')} {format(link.current_fidelity, '.4f')}")
+        
+        # purification
+        self.purify_routine()
 
-    def swapping(self):
+
+    def swap_routine(self):
         # add next event to the next time-slot
         tc = self.simulator.tc
-        if self.gen_rate is not None:
-            t_time_slot = Time(time_slot=tc.time_slot) + Time(time_slot=1)
-            self.simulator.add_event(func_to_event(t_time_slot, self.generate_entanglement, by=self))
+        t_time_slot = Time(time_slot=tc.time_slot) + Time(time_slot=1)
+        self.simulator.add_event(func_to_event(t_time_slot, self.generate_entanglement, by=self))
         # swapping for request
-    
+        for req in self.requests:
+            route = self.net.route.query(src=req.src, dest=req.dest)
+            nodes = route[0][2]
+            for i in range(len(route[0][2]) - 1):
+                n1 = nodes[i]
+                n2 = nodes[i + 1]
+                links = self.get_links(n1, n2)
+                is_link_entangled = False
+                for link in links:
+                    if link.is_entangled:
+                        is_link_entangled = True
+
+                        break
+
+
+
     def swap(self, l1, l2):
         if l1.is_entangled and l2.is_entangled:
             if random.random() < self.p_swap:
@@ -150,7 +164,32 @@ class PSApp(Application):
                 return False
         else:
             return False
+        
+    def purify_routine(self):
+        # add next event to the next time-slot
+        tc = self.simulator.tc
+        t_time_slot = Time(time_slot=tc.time_slot) + Time(time_slot=1)
+        self.simulator.add_event(func_to_event(t_time_slot, self.swap_routine, by=self))
+        # purify
+        for i in range(len(self.adjacent)):
+            if self.adjacent[i].node_list[0] == self.own:
+                n2 = self.adjacent[i].node_list[1]
+            else:
+                n2 = self.adjacent[i].node_list[0]
+            links = self.get_links(self.own, n2)
+            is_both_entangled = True
+            for link in links:
+                if not link.is_entangled:
+                    is_both_entangled = False
+                    break
+            if is_both_entangled:
+                log.debug(f'purify_attempt: {self.own} {links[0].current_fidelity} {n2} {links[1].current_fidelity}')
+                prev_fidelity = links[0].current_fidelity
+                res = self.purify(links[0], links[1])
+                new_fidelity = links[0].current_fidelity
+                log.debug(f'purify_result: {"success!" if res else "failed"}, {prev_fidelity} -> {new_fidelity}')
 
+    #purify l1 using l2
     def purify(self, l1, l2):
         fmin = min(l1.current_fidelity, l2.current_fidelity)
         if random.random() > (fmin ** 2 + 5 / 9 * (1 - fmin) ** 2 + 2 / 3 * fmin * (1 - fmin)):
@@ -163,8 +202,18 @@ class PSApp(Application):
             f = (fmin ** 2 + (1 - fmin) ** 2 / 9) / (fmin ** 2 + 5 / 9 * (1 - fmin) ** 2 + 2 / 3 * fmin * (1 - fmin))
             l1.current_fidelity = f
             l2.current_fidelity = 0
+            l2.is_entangled = False
             return True
     
+    def get_links(self, n1: QNode, n2: QNode):
+        links = []
+        for link in self.adjacent:
+            if link.node_list[0] == n1 and link.node_list[1] == n2:
+                links.append(link)
+            elif link.node_list[0] == n2 and link.node_list[1] == n1:
+                links.append(link)
+        return links
+
 def test_ps():
     s = Simulator(0, 5, accuracy=1)
     log.install(s)
@@ -175,7 +224,7 @@ def test_ps():
                         memory_args=[{
                             "capacity": 50,
                             "decoherence_rate": 0.2}],
-                        nodes_apps=[PSApp(init_fidelity=0.99, gen_rate=1, channel_number=2)])
+                        nodes_apps=[PSApp(init_fidelity=0.99, channel_number=2)])
     
     net = QuantumNetwork(
         topo=topo, classic_topo=ClassicTopology.All, route=DijkstraRouteAlgorithm())
