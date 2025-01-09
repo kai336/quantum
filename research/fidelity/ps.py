@@ -74,13 +74,18 @@ class PSApp(Application):
         
         # set initial event
         if self.is_center:
-            # initialize links
+            # initialize
+            self.init_reqs()
             self.init_links()
             # add next event to the next time-slot
             # install() -> generate_entanglement -> update_links(update fidelity and purification) -> swap generate_entanglement -> ...
             ts = self.simulator.ts
             event_generate_entanglement = func_to_event(ts + Time(time_slot=1), self.generate_entanglement, by=self)
             self.simulator.add_event(event_generate_entanglement)
+
+    def init_reqs(self):
+        for req in self.requests:
+            req.is_finished = False
     
     def init_links(self):
         for link in self.adjacent:
@@ -129,7 +134,6 @@ class PSApp(Application):
         # purification
         self.purify_routine()
 
-
     def swap_routine(self):
         # add next event to the next time-slot
         tc = self.simulator.tc
@@ -137,33 +141,61 @@ class PSApp(Application):
         self.simulator.add_event(func_to_event(t_time_slot, self.generate_entanglement, by=self))
         # swapping for request
         for req in self.requests:
+            # check if the request is finished
+            if req.is_finished:
+                continue
+            # check if the request is swappable
+            tmp_links = self.get_links(req.src, req.dest)
+            if len(tmp_links) == self.channel_number:
+                is_finished = False
+                for link in tmp_links:
+                    if link.is_entangled:
+                        is_finished = True
+                        break
+                req.is_finished = is_finished
+                log.debug(f'unswappable req: {req.src} {req.dest} {is_finished}')
+                continue
+            # check if the links are swappable
             route = self.net.route.query(src=req.src, dest=req.dest)
             nodes = route[0][2]
+            log.debug(f'route: {nodes}')
+            is_links_available = True
+            links_available: List[QuantumChannel] = []
             for i in range(len(route[0][2]) - 1):
                 n1 = nodes[i]
                 n2 = nodes[i + 1]
                 links = self.get_links(n1, n2)
-                is_link_entangled = False
+                log.debug(f'links: {n1} {n2} {links}')
+                is_link_available = False
                 for link in links:
                     if link.is_entangled:
-                        is_link_entangled = True
-
+                        is_link_available = True
+                        links_available.append(link)
                         break
-
-
+                if not is_link_available:
+                    is_links_available = False
+                    break
+            if is_links_available:
+                log.debug(f'swap_attempt: {req.src} {req.dest}')
+                res = self.swap(links_available[0], links_available[1])
+                log.debug(f'swap_result: {f"success! fidelity: {res}" if res is not 0 else "failed"}')
+                if res:
+                    req.is_finished = True
+                    break
 
     def swap(self, l1, l2):
         if l1.is_entangled and l2.is_entangled:
             if random.random() < self.p_swap:
                 l1.is_entangled = False
                 l2.is_entangled = False
+                new_fidelity = l1.current_fidelity * l2.current_fidelity
                 l1.current_fidelity = 0
                 l2.current_fidelity = 0
-                return True
+                return new_fidelity
             else:
-                return False
+                return 0
         else:
-            return False
+            return 0
         
     def purify_routine(self):
         # add next event to the next time-slot
@@ -208,9 +240,7 @@ class PSApp(Application):
     def get_links(self, n1: QNode, n2: QNode):
         links = []
         for link in self.adjacent:
-            if link.node_list[0] == n1 and link.node_list[1] == n2:
-                links.append(link)
-            elif link.node_list[0] == n2 and link.node_list[1] == n1:
+            if n1 in link.node_list and n2 in link.node_list:
                 links.append(link)
         return links
 
