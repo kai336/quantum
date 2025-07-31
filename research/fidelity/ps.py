@@ -179,8 +179,9 @@ class PSApp(Application):
                 log.debug(f'swap_attempt: {req.src} {req.dest}')
                 res = self.swap(links_available[0], links_available[1])
                 log.debug(f'swap_result: {f"success! fidelity: {res}" if res is not 0 else "failed"}')
-                if res:
+                if res is not 0:
                     req.is_finished = True
+                    self.success.append(res)
                     break
 
     def swap(self, l1, l2):
@@ -245,7 +246,7 @@ class PSApp(Application):
         return links
 
 def test_ps():
-    s = Simulator(0, 5, accuracy=1)
+    s = Simulator(0, 1000, accuracy=1)
     log.install(s)
     log.logger.setLevel(log.logging.DEBUG)
     topo = StarTopology(nodes_number=5,
@@ -263,5 +264,5 @@ def test_ps():
     net.random_requests(number=10, allow_overlay=True)
     net.install(s)
     s.run()
-
+    print(net.nodes[0].apps[0].success)
 test_ps()

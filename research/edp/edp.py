@@ -10,11 +10,8 @@ Q = {
     ('E', 'F'): {'rate': 10, 'fid': fidelity},
 }
 
-
-
 # フィデリティの候補集合
-F = [round(0.70 + 0.01 * i, 3) for i in range(31)]  # 21段階
-
+F = [round(0.70 + 0.01 * i, 3) for i in range(31)]
 
 # スワップ後フィデリティの計算
 def Fswap(f1, f2):
@@ -39,61 +36,55 @@ def DP(x, y, f_req, depth=0, max_depth=20):
     indent = '  ' * depth
     key = (x, y, f_req)
 
-    print(f"{indent}DP call: {x}-{y}, f_req={f_req:.3f}, depth={depth}")
-
     if depth > max_depth:
-        print(f"{indent}Exceeded max depth at {x}-{y} f_req={f_req}")
         return None
 
     if key in memo:
-        print(f"{indent}Memo hit: {x}-{y} f_req={f_req}")
         return memo[key]
 
     best_latency = math.inf
     best_tree = None
 
-    # 直接リンクの場合
+    # 直接リンク
     if (x, y) in Q and Q[(x, y)]['fid'] >= f_req:
         latency = 1 / Q[(x, y)]['rate']
-        print(f"{indent}Direct link usable {x}-{y} latency={latency}")
         best_latency = latency
-        best_tree = f"Link({x}-{y})"
+        best_tree = {'type': 'Link', 'link': (x, y)}
 
     if (y, x) in Q and Q[(y, x)]['fid'] >= f_req:
         latency = 1 / Q[(y, x)]['rate']
-        print(f"{indent}Direct link usable {y}-{x} latency={latency}")
         if latency < best_latency:
             best_latency = latency
-            best_tree = f"Link({y}-{x})"
+            best_tree = {'type': 'Link', 'link': (y, x)}
 
-    # swapping
-    all_nodes = set()
-    for link in Q.keys():
-        all_nodes.update(link)
-
+    # Swap
     path = ['A', 'B', 'C', 'D', 'E', 'F']
     i_x = path.index(x)
     i_y = path.index(y)
     if i_x > i_y:
         i_x, i_y = i_y, i_x
-    valid_z = path[i_x+1:i_y]  # xとyの間だけ
+    valid_z = path[i_x+1:i_y]
 
     for z in valid_z:
-        if z == x or z == y:
-            continue
         for f1 in F:
             for f2 in F:
                 f_sw = Fswap(f1, f2)
                 if f_sw >= f_req:
-                    print(f"{indent}Try swap via {z} with f1={f1}, f2={f2}, f_sw={f_sw:.3f}")
                     res1 = DP(x, z, f1, depth + 1, max_depth)
                     res2 = DP(z, y, f2, depth + 1, max_depth)
                     if res1 and res2:
                         latency = Lswap(res1[0], res2[0])
                         if latency < best_latency:
                             best_latency = latency
-                            best_tree = f"Swap({x}-{y} via {z}): {res1[1]}, {res2[1]}"
-    
+                            best_tree = {
+                                'type': 'Swap',
+                                'via': z,
+                                'x': x,
+                                'y': y,
+                                'left': res1[1],
+                                'right': res2[1]
+                            }
+
     # Purify
     for f0 in F:
         if f0 >= f_req:
@@ -105,26 +96,40 @@ def DP(x, y, f_req, depth=0, max_depth=20):
                 latency = Lpur(res[0], f0)
                 if latency < best_latency:
                     best_latency = latency
-                    best_tree = f"Purify({x}-{y}): {res[1]}"
+                    best_tree = {
+                        'type': 'Purify',
+                        'x': x,
+                        'y': y,
+                        'child': res[1]
+                    }
 
     if best_latency < math.inf:
         memo[key] = (best_latency, best_tree)
-        print(f"{indent}Best found {x}-{y} f_req={f_req:.3f} f_link={fidelity} latency={best_latency}")
         return memo[key]
     else:
-        print(f"{indent}No valid path for {x}-{y} f_req={f_req:.3f}")
         memo[key] = None
         return None
 
 
-
+# ツリーをきれいに表示する関数
+def print_tree(tree, indent=''):
+    if tree['type'] == 'Link':
+        print(f"{indent}- Link {tree['link'][0]}-{tree['link'][1]}")
+    elif tree['type'] == 'Swap':
+        print(f"{indent}- Swap {tree['x']}-{tree['y']} via {tree['via']}")
+        print_tree(tree['left'], indent + '  ')
+        print_tree(tree['right'], indent + '  ')
+    elif tree['type'] == 'Purify':
+        print(f"{indent}- Purify {tree['x']}-{tree['y']}")
+        print_tree(tree['child'], indent + '  ')
 
 
 # 実行例
 result = DP('A', 'E', 0.8)
 if result:
     latency, tree = result
-    print(f"最適遅延: {latency}")
-    print(f"ツリー構造: {tree}")
+    print(f"latency: {latency}")
+    print("tree:")
+    print_tree(tree)
 else:
     print("適切な構造が見つかりませんでした。")
