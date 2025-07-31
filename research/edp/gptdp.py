@@ -1,12 +1,13 @@
 import math
 
 # ネットワーク定義（例）
+fidelity = 0.9
 Q = {
-    ('A', 'B'): {'rate': 10, 'fid': 0.99},
-    ('B', 'C'): {'rate': 10, 'fid': 0.99},
-    ('C', 'D'): {'rate': 10, 'fid': 0.99},
-    ('D', 'E'): {'rate': 10, 'fid': 0.99},
-    ('E', 'F'): {'rate': 10, 'fid': 0.99}
+    ('A', 'B'): {'rate': 10, 'fid': fidelity},
+    ('B', 'C'): {'rate': 10, 'fid': fidelity},
+    ('C', 'D'): {'rate': 10, 'fid': fidelity},
+    ('D', 'E'): {'rate': 10, 'fid': fidelity},
+    ('E', 'F'): {'rate': 10, 'fid': fidelity},
 }
 
 
@@ -65,12 +66,19 @@ def DP(x, y, f_req, depth=0, max_depth=20):
             best_latency = latency
             best_tree = f"Link({y}-{x})"
 
-    # スワップの場合
+    # swapping
     all_nodes = set()
     for link in Q.keys():
         all_nodes.update(link)
 
-    for z in all_nodes:
+    path = ['A', 'B', 'C', 'D', 'E', 'F']
+    i_x = path.index(x)
+    i_y = path.index(y)
+    if i_x > i_y:
+        i_x, i_y = i_y, i_x
+    valid_z = path[i_x+1:i_y]  # xとyの間だけ
+
+    for z in valid_z:
         if z == x or z == y:
             continue
         for f1 in F:
@@ -86,7 +94,7 @@ def DP(x, y, f_req, depth=0, max_depth=20):
                             best_latency = latency
                             best_tree = f"Swap({x}-{y} via {z}): {res1[1]}, {res2[1]}"
     
-    # Purifyの場合
+    # Purify
     for f0 in F:
         if f0 >= f_req:
             continue
@@ -101,7 +109,7 @@ def DP(x, y, f_req, depth=0, max_depth=20):
 
     if best_latency < math.inf:
         memo[key] = (best_latency, best_tree)
-        print(f"{indent}Best found {x}-{y} f_req={f_req:.3f} latency={best_latency}")
+        print(f"{indent}Best found {x}-{y} f_req={f_req:.3f} f_link={fidelity} latency={best_latency}")
         return memo[key]
     else:
         print(f"{indent}No valid path for {x}-{y} f_req={f_req:.3f}")
