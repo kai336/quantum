@@ -34,7 +34,7 @@ def Lpur(l, f, pp=0.8, tau_p=10, tau_c=10):
 memo = {}
 
 def DP(x, y, f_req, depth=0, max_depth=20):
-    indent = '  ' * depth
+    #indent = '  ' * depth
     key = (x, y, f_req)
 
     if depth > max_depth:
