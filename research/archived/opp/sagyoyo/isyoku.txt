@@ -1,0 +1,418 @@
+[0.0] simulation started.
+[0.0] <node n1> started eg challenge
+[0.0] <node n3> started eg challenge
+[0.0] <node n3> <--> <node n2> entangled
+[0.0] <node n3> started eg challenge
+[0.0] <node n6> started eg challenge
+[0.0] <node n6> started eg challenge
+[0.0] <node n7> started eg challenge
+[0.0] <node n2> started eg challenge
+[0.0] <node n5> started eg challenge
+[0.0] <node n5> started eg challenge
+[0.0] <node n4> started eg challenge
+[0.0] <node n4> started eg challenge
+[0.01] <node n3> started eg challenge
+[0.01] <node n5> started eg challenge
+[0.01] <node n5> started eg challenge
+[0.01] <node n5> <--> <node n6> entangled
+[0.01] <node n1> started eg challenge
+[0.01] <node n4> started eg challenge
+[0.01] <node n4> started eg challenge
+[0.01] <node n6> started eg challenge
+[0.01] <node n6> <--> <node n7> entangled
+[0.01] <node n2> started eg challenge
+[0.02] <node n5> started eg challenge
+[0.02] <node n2> started eg challenge
+[0.02] <node n2> <--> <node n1> entangled
+[0.02] <node n3> started eg challenge
+[0.02] <node n4> started eg challenge
+[0.02] <node n4> started eg challenge
+[0.03] <node n5> started eg challenge
+[0.03] <node n3> started eg challenge
+[0.03] <node n4> started eg challenge
+[0.03] <node n4> <--> <node n3> entangled
+[0.03] <node n4> started eg challenge
+[0.04] <node n4> started eg challenge
+[0.04] <node n4> <--> <node n5> entangled
+[0.11] <qchannel l2>: decoherenced
+[0.11] <node n3> started eg challenge
+[0.11] <node n3> <--> <node n2> entangled
+[0.12] <qchannel l5>: decoherenced
+[0.12] <qchannel l6>: decoherenced
+[0.12] <node n6> started eg challenge
+[0.12] <node n6> started eg challenge
+[0.12] <node n6> <--> <node n7> entangled
+[0.12] <node n5> started eg challenge
+[0.12] <node n5> <--> <node n6> entangled
+[0.13] <qchannel l1>: decoherenced
+[0.13] <node n2> started eg challenge
+[0.13] <node n1> started eg challenge
+[0.14] <qchannel l3>: decoherenced
+[0.14] <node n3> started eg challenge
+[0.14] <node n4> started eg challenge
+[0.14] <node n4> <--> <node n3> entangled
+[0.14] <node n2> started eg challenge
+[0.14] <node n1> started eg challenge
+[0.15] <qchannel l4>: decoherenced
+[0.15] <node n4> started eg challenge
+[0.15] <node n5> started eg challenge
+[0.15] <node n1> started eg challenge
+[0.15] <node n2> started eg challenge
+[0.16] <node n4> started eg challenge
+[0.16] <node n1> started eg challenge
+[0.16] <node n2> started eg challenge
+[0.16] <node n5> started eg challenge
+[0.17] <node n4> started eg challenge
+[0.17] <node n5> started eg challenge
+[0.17] <node n1> started eg challenge
+[0.17] <node n2> started eg challenge
+[0.18] <node n4> started eg challenge
+[0.18] <node n2> started eg challenge
+[0.18] <node n1> started eg challenge
+[0.18] <node n5> started eg challenge
+[0.19] <node n4> started eg challenge
+[0.19] <node n1> started eg challenge
+[0.19] <node n5> started eg challenge
+[0.19] <node n2> started eg challenge
+[0.2] <node n4> started eg challenge
+[0.2] <node n2> started eg challenge
+[0.2] <node n1> started eg challenge
+[0.2] <node n5> started eg challenge
+[0.21] <node n4> started eg challenge
+[0.21] <node n5> started eg challenge
+[0.21] <node n1> started eg challenge
+[0.21] <node n2> started eg challenge
+[0.21] <node n2> <--> <node n1> entangled
+[0.22] <node n4> started eg challenge
+[0.22] <qchannel l2>: decoherenced
+[0.22] <node n2> started eg challenge
+[0.22] <node n5> started eg challenge
+[0.22] <node n3> started eg challenge
+[0.23] <node n4> started eg challenge
+[0.23] <node n2> started eg challenge
+[0.23] <qchannel l6>: decoherenced
+[0.23] <node n7> started eg challenge
+[0.23] <qchannel l5>: decoherenced
+[0.23] <node n6> started eg challenge
+[0.23] <node n6> started eg challenge
+[0.23] <node n3> started eg challenge
+[0.23] <node n5> started eg challenge
+[0.23] <node n5> started eg challenge
+[0.24] <node n4> started eg challenge
+[0.24] <node n2> started eg challenge
+[0.24] <node n3> started eg challenge
+[0.24] <node n5> started eg challenge
+[0.24] <node n5> started eg challenge
+[0.24] <node n7> started eg challenge
+[0.24] <node n7> <--> <node n6> entangled
+[0.24] <node n6> started eg challenge
+[0.25] <qchannel l3>: decoherenced
+[0.25] <node n4> started eg challenge
+[0.25] <node n4> started eg challenge
+[0.25] <node n2> started eg challenge
+[0.25] <node n6> started eg challenge
+[0.25] <node n3> started eg challenge
+[0.25] <node n3> started eg challenge
+[0.25] <node n5> started eg challenge
+[0.25] <node n5> started eg challenge
+[0.26] <node n4> started eg challenge
+[0.26] <node n4> started eg challenge
+[0.26] <node n4> <--> <node n5> entangled
+[0.26] <node n5> started eg challenge
+[0.26] <node n2> started eg challenge
+[0.26] <node n2> <--> <node n3> entangled
+[0.26] <node n3> started eg challenge
+[0.26] <node n6> started eg challenge
+[0.27] <node n4> started eg challenge
+[0.27] <node n3> started eg challenge
+[0.27] <node n5> started eg challenge
+[0.27] <node n5> <--> <node n6> entangled
+[0.28] <node n4> started eg challenge
+[0.28] <node n3> started eg challenge
+[0.29] <node n4> started eg challenge
+[0.29] <node n3> started eg challenge
+[0.3] <node n4> started eg challenge
+[0.3] <node n3> started eg challenge
+[0.31] <node n4> started eg challenge
+[0.31] <node n3> started eg challenge
+[0.32] <node n4> started eg challenge
+[0.32] <qchannel l1>: decoherenced
+[0.32] <node n2> started eg challenge
+[0.32] <node n3> started eg challenge
+[0.32] <node n1> started eg challenge
+[0.33] <node n4> started eg challenge
+[0.33] <node n4> <--> <node n3> entangled
+[0.33] <node n1> started eg challenge
+[0.33] <node n2> started eg challenge
+[0.33] <node n2> <--> <node n1> entangled
+[0.34] <qchannel l6>: decoherenced
+[0.34] <node n6> started eg challenge
+[0.34] <node n6> <--> <node n7> entangled
+[0.37] <qchannel l4>: decoherenced
+[0.37] <node n4> started eg challenge
+[0.37] <node n5> started eg challenge
+[0.37] <qchannel l2>: decoherenced
+[0.37] <node n3> started eg challenge
+[0.37] <node n2> started eg challenge
+[0.38] <node n4> started eg challenge
+[0.38] <node n4> <--> <node n5> entangled
+[0.38] <qchannel l5>: decoherenced
+[0.38] <node n6> started eg challenge
+[0.38] <node n3> started eg challenge
+[0.38] <node n2> started eg challenge
+[0.38] <node n5> started eg challenge
+[0.39] <node n6> started eg challenge
+[0.39] <node n3> started eg challenge
+[0.39] <node n5> started eg challenge
+[0.39] <node n2> started eg challenge
+[0.4] <node n5> started eg challenge
+[0.4] <node n2> started eg challenge
+[0.4] <node n6> started eg challenge
+[0.4] <node n3> started eg challenge
+[0.41] <node n3> started eg challenge
+[0.41] <node n5> started eg challenge
+[0.41] <node n6> started eg challenge
+[0.41] <node n2> started eg challenge
+[0.42] <node n6> started eg challenge
+[0.42] <node n2> started eg challenge
+[0.42] <node n3> started eg challenge
+[0.42] <node n5> started eg challenge
+[0.43] <node n5> started eg challenge
+[0.43] <node n5> <--> <node n6> entangled
+[0.43] <node n3> started eg challenge
+[0.43] <node n2> started eg challenge
+[0.44] <qchannel l3>: decoherenced
+[0.44] <node n4> started eg challenge
+[0.44] <qchannel l1>: decoherenced
+[0.44] <node n1> started eg challenge
+[0.44] <node n1> <--> <node n2> entangled
+[0.44] <node n2> started eg challenge
+[0.44] <node n3> started eg challenge
+[0.44] <node n3> started eg challenge
+[0.45] <node n4> started eg challenge
+[0.45] <qchannel l6>: decoherenced
+[0.45] <node n7> started eg challenge
+[0.45] <node n6> started eg challenge
+[0.45] <node n3> started eg challenge
+[0.45] <node n3> started eg challenge
+[0.45] <node n2> started eg challenge
+[0.46] <node n4> started eg challenge
+[0.46] <node n3> started eg challenge
+[0.46] <node n3> started eg challenge
+[0.46] <node n2> started eg challenge
+[0.46] <node n6> started eg challenge
+[0.46] <node n7> started eg challenge
+[0.46] <node n7> <--> <node n6> entangled
+[0.47] <node n2> started eg challenge
+[0.47] <node n4> started eg challenge
+[0.47] <node n4> <--> <node n3> entangled
+[0.47] <node n3> started eg challenge
+[0.48] <node n3> started eg challenge
+[0.48] <node n2> started eg challenge
+[0.49] <qchannel l4>: decoherenced
+[0.49] <node n4> started eg challenge
+[0.49] <node n5> started eg challenge
+[0.49] <node n2> started eg challenge
+[0.49] <node n3> started eg challenge
+[0.5] <node n4> started eg challenge
+[0.5] <node n3> started eg challenge
+[0.5] <node n5> started eg challenge
+[0.5] <node n5> <--> <node n4> entangled
+[0.5] <node n2> started eg challenge
+[0.5] <node n2> <--> <node n3> entangled
+[0.53] <qchannel l5>: decoherenced
+[0.53] <node n5> started eg challenge
+[0.53] <node n6> started eg challenge
+[0.54] <qchannel l1>: decoherenced
+[0.54] <node n1> started eg challenge
+[0.54] <node n5> started eg challenge
+[0.54] <node n6> started eg challenge
+[0.54] <node n2> started eg challenge
+[0.55] <node n1> started eg challenge
+[0.55] <node n5> started eg challenge
+[0.55] <node n2> started eg challenge
+[0.55] <node n6> started eg challenge
+[0.55] <node n6> <--> <node n5> entangled
+[0.56] <qchannel l6>: decoherenced
+[0.56] <node n6> started eg challenge
+[0.56] <node n7> started eg challenge
+[0.56] <node n2> started eg challenge
+[0.56] <node n1> started eg challenge
+[0.57] <node n6> started eg challenge
+[0.57] <node n7> started eg challenge
+[0.57] <node n1> started eg challenge
+[0.57] <node n2> started eg challenge
+[0.58] <node n6> started eg challenge
+[0.58] <node n1> started eg challenge
+[0.58] <node n2> started eg challenge
+[0.58] <qchannel l3>: decoherenced
+[0.58] <node n4> started eg challenge
+[0.58] <node n7> started eg challenge
+[0.58] <node n3> started eg challenge
+[0.59] <node n6> started eg challenge
+[0.59] <node n7> started eg challenge
+[0.59] <node n3> started eg challenge
+[0.59] <node n1> started eg challenge
+[0.59] <node n4> started eg challenge
+[0.59] <node n2> started eg challenge
+[0.6] <node n6> started eg challenge
+[0.6] <node n4> started eg challenge
+[0.6] <node n2> started eg challenge
+[0.6] <node n7> started eg challenge
+[0.6] <node n1> started eg challenge
+[0.6] <node n3> started eg challenge
+[0.61] <qchannel l4>: decoherenced
+[0.61] <node n5> started eg challenge
+[0.61] <node n5> <--> <node n4> entangled
+[0.61] <node n6> started eg challenge
+[0.61] <node n1> started eg challenge
+[0.61] <qchannel l2>: decoherenced
+[0.61] <node n3> started eg challenge
+[0.61] <node n3> started eg challenge
+[0.61] <node n4> started eg challenge
+[0.61] <node n4> <--> <node n3> entangled
+[0.61] <node n7> started eg challenge
+[0.61] <node n2> started eg challenge
+[0.61] <node n2> started eg challenge
+[0.62] <node n7> started eg challenge
+[0.62] <node n6> started eg challenge
+[0.62] <node n3> started eg challenge
+[0.62] <node n1> started eg challenge
+[0.62] <node n2> started eg challenge
+[0.62] <node n2> started eg challenge
+[0.63] <node n7> started eg challenge
+[0.63] <node n2> started eg challenge
+[0.63] <node n2> started eg challenge
+[0.63] <node n6> started eg challenge
+[0.63] <node n6> <--> <node n7> entangled
+[0.63] <node n1> started eg challenge
+[0.63] <node n3> started eg challenge
+[0.64] <node n3> started eg challenge
+[0.64] <node n2> started eg challenge
+[0.64] <node n2> <--> <node n1> entangled
+[0.64] <node n2> started eg challenge
+[0.65] <node n2> started eg challenge
+[0.65] <node n3> started eg challenge
+[0.66] <qchannel l5>: decoherenced
+[0.66] <node n5> started eg challenge
+[0.66] <node n2> started eg challenge
+[0.66] <node n3> started eg challenge
+[0.66] <node n3> <--> <node n2> entangled
+[0.66] <node n6> started eg challenge
+[0.67] <node n5> started eg challenge
+[0.67] <node n6> started eg challenge
+[0.68] <node n5> started eg challenge
+[0.68] <node n6> started eg challenge
+[0.69] <node n5> started eg challenge
+[0.69] <node n5> <--> <node n6> entangled
+[0.72] <qchannel l4>: decoherenced
+[0.72] <node n5> started eg challenge
+[0.72] <qchannel l3>: decoherenced
+[0.72] <node n3> started eg challenge
+[0.72] <node n4> started eg challenge
+[0.72] <node n4> started eg challenge
+[0.73] <node n5> started eg challenge
+[0.73] <node n3> started eg challenge
+[0.73] <node n4> started eg challenge
+[0.73] <node n4> started eg challenge
+[0.74] <node n5> started eg challenge
+[0.74] <node n5> <--> <node n4> entangled
+[0.74] <qchannel l6>: decoherenced
+[0.74] <node n7> started eg challenge
+[0.74] <node n6> started eg challenge
+[0.74] <node n6> <--> <node n7> entangled
+[0.74] <node n3> started eg challenge
+[0.74] <node n4> started eg challenge
+[0.75] <qchannel l1>: decoherenced
+[0.75] <node n1> started eg challenge
+[0.75] <node n1> <--> <node n2> entangled
+[0.75] <node n3> started eg challenge
+[0.75] <node n4> started eg challenge
+[0.76] <node n4> started eg challenge
+[0.76] <node n3> started eg challenge
+[0.77] <node n4> started eg challenge
+[0.77] <qchannel l2>: decoherenced
+[0.77] <node n3> started eg challenge
+[0.77] <node n3> started eg challenge
+[0.77] <node n2> started eg challenge
+[0.78] <node n4> started eg challenge
+[0.78] <node n2> started eg challenge
+[0.78] <node n3> started eg challenge
+[0.78] <node n3> <--> <node n2> entangled
+[0.78] <node n3> started eg challenge
+[0.79] <node n4> started eg challenge
+[0.79] <node n3> started eg challenge
+[0.79] <qchannel l5>: decoherenced
+[0.79] <node n5> started eg challenge
+[0.79] <node n5> <--> <node n6> entangled
+[0.8] <node n4> started eg challenge
+[0.8] <node n3> started eg challenge
+[0.81] <node n4> started eg challenge
+[0.81] <node n4> <--> <node n3> entangled
+[0.85] <qchannel l4>: decoherenced
+[0.85] <node n4> started eg challenge
+[0.85] <node n4> <--> <node n5> entangled
+[0.85] <qchannel l6>: decoherenced
+[0.85] <node n6> started eg challenge
+[0.85] <node n7> started eg challenge
+[0.86] <qchannel l1>: decoherenced
+[0.86] <node n1> started eg challenge
+[0.86] <node n2> started eg challenge
+[0.86] <node n7> started eg challenge
+[0.86] <node n7> <--> <node n6> entangled
+[0.87] <node n2> started eg challenge
+[0.87] <node n1> started eg challenge
+[0.88] <node n2> started eg challenge
+[0.88] <node n1> started eg challenge
+[0.89] <qchannel l2>: decoherenced
+[0.89] <node n2> started eg challenge
+[0.89] <node n2> started eg challenge
+[0.89] <node n3> started eg challenge
+[0.89] <node n3> <--> <node n2> entangled
+[0.89] <node n1> started eg challenge
+[0.9] <node n1> started eg challenge
+[0.9] <node n2> started eg challenge
+[0.9] <qchannel l5>: decoherenced
+[0.9] <node n6> started eg challenge
+[0.9] <node n5> started eg challenge
+[0.91] <node n6> started eg challenge
+[0.91] <node n5> started eg challenge
+[0.91] <node n2> started eg challenge
+[0.91] <node n1> started eg challenge
+[0.92] <qchannel l3>: decoherenced
+[0.92] <node n4> started eg challenge
+[0.92] <node n3> started eg challenge
+[0.92] <node n3> <--> <node n4> entangled
+[0.92] <node n2> started eg challenge
+[0.92] <node n1> started eg challenge
+[0.92] <node n1> <--> <node n2> entangled
+[0.92] <node n6> started eg challenge
+[0.92] <node n5> started eg challenge
+[0.93] <node n6> started eg challenge
+[0.93] <node n5> started eg challenge
+[0.93] <node n5> <--> <node n6> entangled
+[0.96] <qchannel l4>: decoherenced
+[0.96] <node n5> started eg challenge
+[0.96] <node n4> started eg challenge
+[0.97] <node n5> started eg challenge
+[0.97] <qchannel l6>: decoherenced
+[0.97] <node n7> started eg challenge
+[0.97] <node n4> started eg challenge
+[0.97] <node n6> started eg challenge
+[0.98] <node n5> started eg challenge
+[0.98] <node n6> started eg challenge
+[0.98] <node n7> started eg challenge
+[0.98] <node n4> started eg challenge
+[0.99] <node n5> started eg challenge
+[0.99] <node n4> started eg challenge
+[0.99] <node n6> started eg challenge
+[0.99] <node n7> started eg challenge
+[1.0] <qchannel l2>: decoherenced
+[1.0] <node n3> started eg challenge
+[1.0] <node n5> started eg challenge
+[1.0] <node n7> started eg challenge
+[1.0] <node n6> started eg challenge
+[1.0] <node n2> started eg challenge
+[1.0] <node n4> started eg challenge
+[1.0] simulation finished.
+[1.0] runtime 0.024683713912963867, 751 events,                sim_time 1.0, x40.51254213713767
