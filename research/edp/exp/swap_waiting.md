@@ -4,15 +4,15 @@
 - the first step of simulating of EDP like algorithm on SimQN
 ## design
 - routing & swapping algorithm: smth like EDP
-- topology: waxman
+- topology: line? grid? waxman? to be decided
 - implementation details
   - 各リクエスト `Request: net.requests[i]` の属性
     - `QNode: src`: the source node
     - `QNode: dst`: the destination node
     - `Dist: attr`: the attributes of the request
       - `["id"]`: UUID
-      - `["plan"]`: swapping tree object
-        - `tree`: swapping tree
+      - `["swapping"]`: swappingの計画&進捗
+        - `plan`: swapping tree(EDPの出力)に記された操作の順序列
         - `progress`: treeで指定された操作の進捗
       - `["fidelity_threshold"]`: 要求EP忠実度の下限
       - `["priority"]`: 優先度
@@ -24,6 +24,7 @@
         - `max_mem_per_node`: ノードのメモリ数
         - `reserve_links`: 専有したいリンクのid配列 経路決定後
   - 各ノード `QNode: net.nodes[j]` の属性
+    -
   - swapの待ち時間を計測する
     - `t_ready_left`, `t_ready_right`
       - swapに用いる左右のもつれができたそれぞれの時間

@@ -2,3 +2,5 @@
 _*
 .*
 __pycache__
+pyproject.toml
+uv.lock
