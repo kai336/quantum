@@ -23,13 +23,13 @@
 - routing & swapping algorithm: smth like EDP
 - topology: line? grid? waxman?
 ## implementation details
-  - 各ノード上のアプリケーション
+  - ノード上のアプリケーション
     - ``
-  - 各パラメタ
+  - パラメタ
     - `gen_rate`: p_genのかわりにもつれ生成のレートを決定
     - `p_swap`
     - `p_pur`
-  - 各リクエスト `Request: net.requests[i]` の属性
+  - リクエスト `Request: net.requests[i]` の属性
     - `QNode: src`: the source node
     - `QNode: dst`: the destination node
     - `Dist: attr`: the attributes of the request
@@ -46,7 +46,7 @@
       - `["resource_hints"]`: 資源制約
         - `max_mem_per_node`: ノードのメモリ数
         - `reserve_links`: 専有したいリンクのid配列 経路決定後
-  - 各ノード `QNode: net.nodes[j]` の属性
+  - ノード `QNode: net.nodes[j]` の属性
     - `network`: 属するネットワーク
     - `cchannels`, `qchannels`: 接続された古典・量子チャネル
     - `memories`: # of memories にする
