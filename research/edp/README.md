@@ -1,6 +1,6 @@
 # EDP実験概要
 ## ディレクトリ構成
-```
+<pre>
 /edp
     /alg
         edp.py # EDPアルゴリズムの本体
@@ -13,7 +13,7 @@
         topology # waxmanトポロジー生成
     /exp
         main.py # シミュレーション実行プログラム
-```
+</pre>
 ## purpose
 - the first step of simulating of EDP like algorithm on SimQN
 - measuring swap-waiting time for established entanglement

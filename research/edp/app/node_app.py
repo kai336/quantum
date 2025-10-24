@@ -1,4 +1,4 @@
-# EDPlikeNodeApp.py
+# node_app.py
 from typing import Dict, Optional, List
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
@@ -11,26 +11,12 @@ from qns.simulator.ts import Time
 import qns.utils.log as log
 import random
 
+# 初期値
 p_swap = 0.4
 target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
-
-drop_rate = 0.0  # p_genでもつれ生成の確率を管理しているので０でok
-
-lifetime = 30
-decoherence_rate = 1 / lifetime
-
-gen_rate = 1  # １秒あたりのもつれ生成回数
-
-# network settings
-nodes_number = 7
-qchannel_delay = 0.0
-cchannel_delay = 0.0
-M = 5
-N = 20
-L = 6
-request_number = 5
+gen_rate = 50  # １秒あたりのもつれ生成回数
 
 
 class EDPlikeNodeApp(Application):
@@ -50,4 +36,5 @@ class EDPlikeNodeApp(Application):
         self.memory = self.node.memories
         self.net = self.node.network
         self.requests = self.node.requests
-        
+
+    def 

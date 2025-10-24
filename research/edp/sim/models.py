@@ -1,3 +1,4 @@
+# models.py
 # models for EDP simulation
 def Fswap(fl, fr):
     return 0.25 * (1 + (1 / 3) * (4 * fl - 1) * (4 * fr - 1))
