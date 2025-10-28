@@ -37,4 +37,25 @@ class EDPlikeNodeApp(Application):
         self.net = self.node.network
         self.requests = self.node.requests
 
-    def 
+        ts = simulator.ts
+        self.init_event(ts)
+
+    def init_event(self, t: Time):
+        # 初期イベントを挿入
+        pass
+
+    def gen_EP(self):
+        # 隣接するノードともつれ生成
+        pass
+
+    def op_handler(self):
+        # controllerからの命令ハンドラ
+        pass
+
+    def swap(self, qc1: QuantumChannel, qc2: QuantumChannel):
+        # swap操作
+        pass
+
+    def purify(self, qc1: QuantumChannel, qc2: QuantumChannel):
+        # purify操作
+        pass

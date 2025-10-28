@@ -1,11 +1,13 @@
 # 環境構築
 ## pythonの仮想環境構築
 ```bash
-python3 -m venv .env
+pip install uv
+uv init
+uv add qns
 ```
-## qns(simQN)のインストール
+## pythonファイル実行
 ```bash
-pip install qns
+uv run hogehoge.py
 ```
 
 # 中身
