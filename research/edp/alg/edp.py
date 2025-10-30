@@ -130,13 +130,16 @@ def print_tree(tree, indent=""):
         print(f"{indent}- Purify {tree['x']}-{tree['y']}")
         print_tree(tree["child"], indent + "  ")
 
+"""
+tree: {'type': 'Swap', 'via': 'C', 'x': 'A', 'y': 'E', 'left': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Swap', 'via': 'B', 'x': 'A', 'y': 'C', 'left': {'type': 'Link', 'link': ('A', 'B')}, 'right': {'type': 'Link', 'link': ('B', 'C')}}}}}, 'right': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Swap', 'via': 'D', 'x': 'C', 'y': 'E', 'left': {'type': 'Link', 'link': ('C', 'D')}, 'right': {'type': 'Link', 'link': ('D', 'E')}}}}}}
+"""
 
 # 実行例
 result = DP("A", "E", 0.8)
 if result:
     latency, tree = result
     print(f"latency: {latency}")
-    print("tree:")
+    print("tree:", tree)
     print_tree(tree)
 else:
     print("適切な構造が見つかりませんでした。")

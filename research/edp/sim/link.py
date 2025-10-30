@@ -7,6 +7,10 @@ from typing import Tuple
 
 
 class LinkEP(Entity):
+    """
+    １つの link = bell pair を記述するクラス
+    """
+
     def __init__(
         self,
         name: str = None,
@@ -15,16 +19,11 @@ class LinkEP(Entity):
         qc: QuantumChannel = None,
         created_at: Time = None,
         status: str = None,
-        swap_level: int = 0,
+        swap_level: int = 0,  # 何回のswapでできているか
     ):
         super().__init__(name=name)
         self.fidelity = fidelity
         self.nodes = nodes
-
-    def trash(self):
-        self.fidelity = 0
-        self.node = None
-        # リストからこのリンク削除処理を追加する
 
     def write_status(self, status: str):
         self.status = status

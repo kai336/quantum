@@ -7,8 +7,9 @@ from qns.entity.node.node import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
+from qns.network import QuantumNetwork, Request
 from qns.simulator.ts import Time
+
 import qns.utils.log as log
 import random
 
@@ -25,6 +26,9 @@ class ControllerApp(Application):
         super().__init__()
         self.p_swap = p_swap
         self.gen_rate = p_swap
+        self.net = None
+        self.requests = None
+        self.links = None
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -32,6 +36,9 @@ class ControllerApp(Application):
         self._simulator = simulator
         self.net = self.node.network
         self.reuests = self.net.requests
+        
+        # requestを管理するself.requests
+        # linkを管理するself.links
 
     def init_event(self, t: Time):
         # 初期イベントを挿入
@@ -46,3 +53,11 @@ class ControllerApp(Application):
         # qcのリストから各qcに存在するlinkを管理
 
         pass
+
+    def gen_EP(self):
+        # 全qcでもつれ生成 -> 各nodeの量子メモリにあてがう
+    
+    def req_converter(self, qnsreq: Request) -> NewRequest:
+        # qnsのrequestクラスから自作クラスに変換
+        pass
+        

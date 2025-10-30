@@ -11,12 +11,15 @@ from qns.simulator.ts import Time
 import qns.utils.log as log
 import random
 
+from research.edp.sim.link import LinkEP
+
 # 初期値
 p_swap = 0.4
 target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
+n_slot_per_sec = 100  # 1秒当たりのタイムスロット数
 
 
 class EDPlikeNodeApp(Application):
@@ -29,13 +32,28 @@ class EDPlikeNodeApp(Application):
         self.p_swap = p_swap
         self.gen_rate = gen_rate
 
+        self.node = None
+        self._simulator = None
+        self.memory = None
+        self.net = None
+        self.requests = None
+        self.qc = None
+        self.adj = []
+
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
         self.node = node
         self._simulator = simulator
-        self.memory = self.node.memories
-        self.net = self.node.network
-        self.requests = self.node.requests
+        self.memory = node.memories
+        self.net = node.network
+        self.requests = node.requests
+        self.qc = node.qchannels  # 接続されてる量子チャネル
+
+        # 隣接ノードを記録する
+        for qc in self.qc:
+            for node in qc.node_list:
+                if node is not self.node:
+                    self.adj.append(node)
 
         ts = simulator.ts
         self.init_event(ts)
@@ -45,7 +63,7 @@ class EDPlikeNodeApp(Application):
         pass
 
     def gen_EP(self):
-        # 隣接するノードともつれ生成
+        # やっぱりcontrollerでやる
         pass
 
     def op_handler(self):
