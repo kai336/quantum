@@ -44,7 +44,7 @@ def Lpur(l, f, pp=0.8, tau_p=10, tau_c=10):
 memo = {}
 
 
-def DP(x, y, f_req, depth=0, max_depth=20):
+def EDP(x, y, f_req, depth=0, max_depth=20):
     # indent = '  ' * depth
     key = (x, y, f_req)
 
@@ -129,6 +129,7 @@ def print_tree(tree, indent=""):
     elif tree["type"] == "Purify":
         print(f"{indent}- Purify {tree['x']}-{tree['y']}")
         print_tree(tree["child"], indent + "  ")
+
 
 """
 tree: {'type': 'Swap', 'via': 'C', 'x': 'A', 'y': 'E', 'left': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Swap', 'via': 'B', 'x': 'A', 'y': 'C', 'left': {'type': 'Link', 'link': ('A', 'B')}, 'right': {'type': 'Link', 'link': ('B', 'C')}}}}}, 'right': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Swap', 'via': 'D', 'x': 'C', 'y': 'E', 'left': {'type': 'Link', 'link': ('C', 'D')}, 'right': {'type': 'Link', 'link': ('D', 'E')}}}}}}
