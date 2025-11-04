@@ -15,6 +15,7 @@ import random
 
 from research.edp.sim.new_request import NewRequest
 from research.edp.sim.link import LinkEP
+from research.edp.alg.edp import EDP
 
 # 初期値
 p_swap = 0.4
