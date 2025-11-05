@@ -1,13 +1,12 @@
 # controller_app.py
-from types import SimpleNamespace
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork, Request
+from qns.network import QuantumNetwork
 from qns.simulator.ts import Time
 
 import qns.utils.log as log
@@ -15,7 +14,8 @@ import random
 
 from research.edp.sim.new_request import NewRequest
 from research.edp.sim.link import LinkEP
-from research.edp.alg.edp import EDP
+from research.edp.alg._edp import EDP
+from research.edp.sim.new_qchannel import NewQC
 
 # 初期値
 p_swap = 0.4
@@ -36,7 +36,7 @@ class ControllerApp(Application):
         self.net: QuantumNetwork = None
         self.node: QNode = None
         self.requests: List[NewRequest] = []
-        self.links: List[tuple(QNode, QNode, List[LinkEP])] = []  # src, dest, links
+        self.links: List[Tuple(QNode, QNode, List[LinkEP])] = []  # src, dest, links
         self.requests = []
         self.nodes = []
 
@@ -60,18 +60,22 @@ class ControllerApp(Application):
             src = req.src
             dest = req.dest
             name = f"req{i}"
-            swap_plan = EDP(src, dest, f_req)  # ここで経路計算
+            #swap_plan = EDP(src, dest, f_req)  # ここで経路計算
             new_req = NewRequest(
-                src=src, dest=dest, name=name, priority=0, swap_plan=swap_plan
+                src=src, dest=dest, name=name, priority=0
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
+
+    def route_EDP(self):
+        # EDPのルーティング
+        swap_plan = EDP()
 
     def init_links(self):
         # linkを管理するself.links
         # EPを簡易的にlinkとして取り扱う
         for i in range(len(self.net.qchannels)):
             qc = self.net.qchannels[i]
-            link = tuple(qc.src, qc.dest, [])
+            link = Tuple(qc.src, qc.dest, [])
             self.links.append(link)
 
     def init_event(self, t: Time):

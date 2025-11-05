@@ -1,4 +1,4 @@
-# edp.pys
+# edp.py
 # EDP algorithm
 
 """
@@ -7,10 +7,31 @@ x, yのQNode入力に対応させる
 !!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!
 """
 
+from qns.entity.qchannel import QuantumChannel
+from qns.network import QuantumNetwork
+from typing import Dict, Tuple, List
 import math
+
+from research.edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
 
 # ネットワーク定義（例）
 fidelity = 0.9
+
+# ここをqns仕様にする
+
+
+def qnet2DictConverter(
+    qcs: List[QuantumChannel], gen_rate: int
+) -> Dict[Tuple[str, str], Dict[str, float]]:
+    qc_dict: Dict[...] = {}
+    for qc in qcs:
+        src = qc.src
+        dest = qc.dest
+        fid = qc.fidelity
+        qc_dict[(src, dest)] = {"rate": gen_rate, "fid": fid}
+    return qc_dict
+
+
 Q = {
     ("A", "B"): {"rate": 10, "fid": fidelity},
     ("B", "C"): {"rate": 10, "fid": fidelity},
@@ -22,33 +43,17 @@ Q = {
 # フィデリティの候補集合
 F = [round(0.70 + 0.01 * i, 3) for i in range(31)]
 
-
-# スワップ後フィデリティの計算
-def Fswap(f1, f2):
-    return 0.25 * (1 + (1 / 3) * (4 * f1 - 1) * (4 * f2 - 1))
-
-
-# スワップ後遅延の計算
-def Lswap(l1, l2, pf=0.8, tau_f=1, tau_c=1):
-    return (1.5 * max(l1, l2) + (tau_f + tau_c)) / pf
-
-
-# ピュリフィケーション後のフィデリティ（簡易モデル）
-def Fpur(ft, fs):
-    return (ft * fs + (1 - ft) / 3 * (1 - fs) / 3) / (
-        ft * fs
-        + ft * (1 - fs) / 3
-        + (1 - ft) / 3 * fs
-        + 5 * (1 - ft) / 3 * (1 - fs) / 3
-    )
-
-
-# ピュリフィケーションの遅延（簡易モデル）
-def Lpur(l, f, pp=0.8, tau_p=10, tau_c=10):
-    return (l + tau_p + tau_c) / pp
-
-
 memo = {}
+
+
+def batch_EDP(qnet: QuantumNetwork):
+    reqs = qnet.requests
+    results = []
+    for req in reqs:
+        res = EDP(req)
+        results.append(res)
+
+    return results
 
 
 def EDP(x, y, f_req, depth=0, max_depth=20):
@@ -87,12 +92,12 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
     for z in valid_z:
         for f1 in F:
             for f2 in F:
-                f_sw = Fswap(f1, f2)
+                f_sw = f_swap(f1, f2)
                 if f_sw >= f_req:
-                    res1 = DP(x, z, f1, depth + 1, max_depth)
-                    res2 = DP(z, y, f2, depth + 1, max_depth)
+                    res1 = EDP(x, z, f1, depth + 1, max_depth)
+                    res2 = EDP(z, y, f2, depth + 1, max_depth)
                     if res1 and res2:
-                        latency = Lswap(res1[0], res2[0])
+                        latency = l_swap(res1[0], res2[0])
                         if latency < best_latency:
                             best_latency = latency
                             best_tree = {
@@ -108,11 +113,11 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
     for f0 in F:
         if f0 >= f_req:
             continue
-        f_pur = Fpur(f0, f0)
+        f_pur = f_pur(f0, f0)
         if f_pur >= f_req:
-            res = DP(x, y, f0, depth + 1, max_depth)
+            res = EDP(x, y, f0, depth + 1, max_depth)
             if res:
-                latency = Lpur(res[0], f0)
+                latency = l_pur(res[0], f0)
                 if latency < best_latency:
                     best_latency = latency
                     best_tree = {"type": "Purify", "x": x, "y": y, "child": res[1]}
@@ -143,7 +148,7 @@ tree: {'type': 'Swap', 'via': 'C', 'x': 'A', 'y': 'E', 'left': {'type': 'Purify'
 """
 
 # 実行例
-result = DP("A", "E", 0.8)
+result = EDP("A", "E", 0.8)
 if result:
     latency, tree = result
     print(f"latency: {latency}")
