@@ -12,7 +12,7 @@ from qns.network import QuantumNetwork
 from typing import Dict, Tuple, List
 import math
 
-from research.edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
+from edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
 
 # ネットワーク定義（例）
 fidelity = 0.9
@@ -25,9 +25,10 @@ def qnet2DictConverter(
 ) -> Dict[Tuple[str, str], Dict[str, float]]:
     qc_dict: Dict[...] = {}
     for qc in qcs:
-        src = qc.src
-        dest = qc.dest
-        fid = qc.fidelity
+        src = qc.node_list[0]
+        dest = qc.node_list[1]
+        # fid = qc.fidelity
+        fid = 0.99
         qc_dict[(src, dest)] = {"rate": gen_rate, "fid": fid}
     return qc_dict
 
@@ -113,8 +114,8 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
     for f0 in F:
         if f0 >= f_req:
             continue
-        f_pur = f_pur(f0, f0)
-        if f_pur >= f_req:
+        f_purify = f_pur(f0, f0)
+        if f_purify >= f_req:
             res = EDP(x, y, f0, depth + 1, max_depth)
             if res:
                 latency = l_pur(res[0], f0)
@@ -147,6 +148,7 @@ def print_tree(tree, indent=""):
 tree: {'type': 'Swap', 'via': 'C', 'x': 'A', 'y': 'E', 'left': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Purify', 'x': 'A', 'y': 'C', 'child': {'type': 'Swap', 'via': 'B', 'x': 'A', 'y': 'C', 'left': {'type': 'Link', 'link': ('A', 'B')}, 'right': {'type': 'Link', 'link': ('B', 'C')}}}}}, 'right': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Purify', 'x': 'C', 'y': 'E', 'child': {'type': 'Swap', 'via': 'D', 'x': 'C', 'y': 'E', 'left': {'type': 'Link', 'link': ('C', 'D')}, 'right': {'type': 'Link', 'link': ('D', 'E')}}}}}}
 """
 
+"""
 # 実行例
 result = EDP("A", "E", 0.8)
 if result:
@@ -156,3 +158,4 @@ if result:
     print_tree(tree)
 else:
     print("適切な構造が見つかりませんでした。")
+"""

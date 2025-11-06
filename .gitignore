@@ -1,6 +1,6 @@
 *.csv
 _*
+!__init__.py
 .*
 __pycache__
-pyproject.toml
 uv.lock
