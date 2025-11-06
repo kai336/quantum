@@ -1,4 +1,5 @@
 # controller_app.py
+# main duty: controll the entire network
 from typing import Dict, Optional, List, Tuple
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
@@ -14,7 +15,7 @@ import random
 
 from research.edp.sim.new_request import NewRequest
 from research.edp.sim.link import LinkEP
-from research.edp.alg._edp import EDP
+from research.edp.alg.edp import batch_EDP
 from research.edp.sim.new_qchannel import NewQC
 
 # 初期値
@@ -28,6 +29,9 @@ init_fidelity = 0.99
 
 
 class ControllerApp(Application):
+    """
+    ネットワーク全体を制御(EP生成、スワップ計画、リクエスト管理)
+    """
     def __init__(self, p_swap: float = p_swap, gen_rate: int = gen_rate, f_req=f_req):
         super().__init__()
         self.p_swap: float = p_swap
@@ -36,14 +40,18 @@ class ControllerApp(Application):
         self.net: QuantumNetwork = None
         self.node: QNode = None
         self.requests: List[NewRequest] = []
-        self.links: List[Tuple(QNode, QNode, List[LinkEP])] = []  # src, dest, links
-        self.requests = []
-        self.nodes = []
+        self.links: List[
+            Tuple(QNode, QNode, float, List[LinkEP])
+        ] = []  # src, dest, links, init fidelity
+        # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
+        self.nodes: List[QNode] = []
+        self.new_net: QuantumNetwork = None  # qcがfidelityつき
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
         self.node = node
         self.net = node.network
+        self.new_net = node.network
 
         # self.nodesでネットワーク上のノードを管理
         self.nodes: List[QNode] = node.network.nodes
@@ -60,15 +68,19 @@ class ControllerApp(Application):
             src = req.src
             dest = req.dest
             name = f"req{i}"
-            #swap_plan = EDP(src, dest, f_req)  # ここで経路計算
+            # swap_plan = EDP(src, dest, f_req)  # ここで経路計算
             new_req = NewRequest(
                 src=src, dest=dest, name=name, priority=0
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
 
+        self.route_EDP()  # ルーティングテーブル作成
+
     def route_EDP(self):
-        # EDPのルーティング
-        swap_plan = EDP()
+        # EDPのルーティングテーブル作成
+        swap_plans = batch_EDP(qnet=self.new_net)
+        for i in len(swap_plans):
+            self.requests[i].swap_plans = swap_plans[i]
 
     def init_links(self):
         # linkを管理するself.links
@@ -78,6 +90,18 @@ class ControllerApp(Application):
             link = Tuple(qc.src, qc.dest, [])
             self.links.append(link)
 
+    def init_qcs(self):
+        # qc.fidelityを設定
+        new_qcs: NewQC = []
+        for qc in self.net.qchannels:
+            fidelity_init = 0.99  # change here to set random fidelity
+            name = qc.name
+            node_list = qc.node_list
+            new_qc = NewQC(name=name, node_list=node_list, fidelity_init=fidelity_init)
+            new_qcs.append(new_qc)
+        self.new_net.qchannles = None
+        self.new_net.qchannles = new_qc
+
     def init_event(self, t: Time):
         # 初期イベントを挿入
         pass
@@ -86,7 +110,7 @@ class ControllerApp(Application):
         # リクエストを管理
         pass
 
-    def link_manager(self):
+    def links_manager(self):
         # linkを管理
         # qcのリストから各qcに存在するlinkを管理
         pass
@@ -95,4 +119,8 @@ class ControllerApp(Application):
         # 1つのLinkEPを確定的に生成する
         tc = self._simulator.tc()
         link = LinkEP(fidelity=init_fidelity, nodes=(src, dest), created_at=tc)
-        self.links.append(link)
+        for i in len(range(self.links)):
+            nodes = [self.links[i][0], self.links[i][1]]
+            if src and dest in nodes:
+                self.links[i][2].append(link)
+        # gen_rateに応じて次のイベント挿入

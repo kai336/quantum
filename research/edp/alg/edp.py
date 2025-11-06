@@ -9,6 +9,7 @@ x, yのQNode入力に対応させる
 
 from qns.entity.qchannel import QuantumChannel
 from qns.network import QuantumNetwork
+from qns.entity.node import QNode
 from typing import Dict, Tuple, List
 import math
 
@@ -33,6 +34,7 @@ def qnet2DictConverter(
     return qc_dict
 
 
+"""
 Q = {
     ("A", "B"): {"rate": 10, "fid": fidelity},
     ("B", "C"): {"rate": 10, "fid": fidelity},
@@ -40,6 +42,7 @@ Q = {
     ("D", "E"): {"rate": 10, "fid": fidelity},
     ("E", "F"): {"rate": 10, "fid": fidelity},
 }
+"""
 
 # フィデリティの候補集合
 F = [round(0.70 + 0.01 * i, 3) for i in range(31)]
@@ -49,17 +52,23 @@ memo = {}
 
 def batch_EDP(qnet: QuantumNetwork):
     reqs = qnet.requests
+    qnet = qnet2DictConverter(qnet.qchannels)
     results = []
     for req in reqs:
-        res = EDP(req)
+        res = EDP(req.src, req.dest, qnet=qnet)
         results.append(res)
-
     return results
 
 
-def EDP(x, y, f_req, depth=0, max_depth=20):
-    # indent = '  ' * depth
-    key = (x, y, f_req)
+def EDP(
+    src: QNode,
+    dest: QNode,
+    f_req: float = 0.7,
+    qnet: Dict[Tuple[str, str], Dict[str, float]] = {},
+    depth: int = 0,
+    max_depth: int = 20,
+):
+    key = (src, dest, f_req)
 
     if depth > max_depth:
         return None
@@ -71,21 +80,21 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
     best_tree = None
 
     # 直接リンク
-    if (x, y) in Q and Q[(x, y)]["fid"] >= f_req:
-        latency = 1 / Q[(x, y)]["rate"]
+    if (src, dest) in qnet and qnet[(src, dest)]["fid"] >= f_req:
+        latency = 1 / qnet[(src, dest)]["rate"]
         best_latency = latency
-        best_tree = {"type": "Link", "link": (x, y)}
+        best_tree = {"type": "Link", "link": (src, dest)}
 
-    if (y, x) in Q and Q[(y, x)]["fid"] >= f_req:
-        latency = 1 / Q[(y, x)]["rate"]
+    if (dest, src) in qnet and qnet[(dest, src)]["fid"] >= f_req:
+        latency = 1 / qnet[(dest, src)]["rate"]
         if latency < best_latency:
             best_latency = latency
-            best_tree = {"type": "Link", "link": (y, x)}
+            best_tree = {"type": "Link", "link": (dest, src)}
 
     # Swap
-    path = ["A", "B", "C", "D", "E", "F"]
-    i_x = path.index(x)
-    i_y = path.index(y)
+    path = ["A", "B", "C", "D", "E", "F"]  # ここどうする
+    i_x = path.index(src)
+    i_y = path.index(dest)
     if i_x > i_y:
         i_x, i_y = i_y, i_x
     valid_z = path[i_x + 1 : i_y]
@@ -95,8 +104,8 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
             for f2 in F:
                 f_sw = f_swap(f1, f2)
                 if f_sw >= f_req:
-                    res1 = EDP(x, z, f1, depth + 1, max_depth)
-                    res2 = EDP(z, y, f2, depth + 1, max_depth)
+                    res1 = EDP(src, z, f1, depth + 1, max_depth)
+                    res2 = EDP(z, dest, f2, depth + 1, max_depth)
                     if res1 and res2:
                         latency = l_swap(res1[0], res2[0])
                         if latency < best_latency:
@@ -104,8 +113,8 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
                             best_tree = {
                                 "type": "Swap",
                                 "via": z,
-                                "x": x,
-                                "y": y,
+                                "x": src,
+                                "y": dest,
                                 "left": res1[1],
                                 "right": res2[1],
                             }
@@ -116,12 +125,12 @@ def EDP(x, y, f_req, depth=0, max_depth=20):
             continue
         f_purify = f_pur(f0, f0)
         if f_purify >= f_req:
-            res = EDP(x, y, f0, depth + 1, max_depth)
+            res = EDP(src, dest, f0, depth + 1, max_depth)
             if res:
                 latency = l_pur(res[0], f0)
                 if latency < best_latency:
                     best_latency = latency
-                    best_tree = {"type": "Purify", "x": x, "y": y, "child": res[1]}
+                    best_tree = {"type": "Purify", "x": src, "y": dest, "child": res[1]}
 
     if best_latency < math.inf:
         memo[key] = (best_latency, best_tree)

@@ -22,7 +22,7 @@ gen_rate = 50  # １秒あたりのもつれ生成回数
 n_slot_per_sec = 100  # 1秒当たりのタイムスロット数
 
 
-class EDPlikeNodeApp(Application):
+class NodeApp(Application):
     def __init__(
         self,
         p_swap: float = p_swap,

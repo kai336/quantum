@@ -1,22 +1,14 @@
 # request.py
 from qns.network import Request
-from typing import Dict
 
 
 class NewRequest(Request):
     """
-    Request class for swapping tree
+    Request class for protocol which uses swapping tree
     """
 
-    def __init__(
-        self,
-        src,
-        dest,
-        name: str,
-        priority,
-        attr: Dict = ...,
-    ) -> None:
-        super().__init__(src, dest, attr)
+    def __init__(self, src, dest, name, priority):
+        super().__init__(src, dest)
         self.name = name
         self.priority = priority
         self.swap_plan = None  # swapping tree
