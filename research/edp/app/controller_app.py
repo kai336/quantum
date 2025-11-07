@@ -32,17 +32,18 @@ class ControllerApp(Application):
     """
     ネットワーク全体を制御(EP生成、スワップ計画、リクエスト管理)
     """
+
     def __init__(self, p_swap: float = p_swap, gen_rate: int = gen_rate, f_req=f_req):
         super().__init__()
         self.p_swap: float = p_swap
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
-        self.net: QuantumNetwork = None
-        self.node: QNode = None
+        self.net: QuantumNetwork
+        self.node: QNode
         self.requests: List[NewRequest] = []
         self.links: List[
             Tuple(QNode, QNode, float, List[LinkEP])
-        ] = []  # src, dest, links, init fidelity
+        ]  # src, dest, links, init fidelity
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] = []
         self.new_net: QuantumNetwork = None  # qcがfidelityつき
@@ -117,7 +118,7 @@ class ControllerApp(Application):
 
     def gen_EP(self, src: QNode, dest: QNode):
         # 1つのLinkEPを確定的に生成する
-        tc = self._simulator.tc()
+        tc = self._simulator.tc
         link = LinkEP(fidelity=init_fidelity, nodes=(src, dest), created_at=tc)
         for i in len(range(self.links)):
             nodes = [self.links[i][0], self.links[i][1]]

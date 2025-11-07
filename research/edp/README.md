@@ -8,8 +8,11 @@
         node_app.py # 各ノード上で動くアプリケーション
         controller_app.py # セントラルコントローラで動くアプリケーション
         ports.py # セントラルコントローラと各ノードの橋渡し
-    /core
+    /sim
+        link.py # リンクのクラス
         models.py # フィデリティ等計算モデル
+        new_qchannnel.py # QuantumChannelにfidelity属性を追加
+        new_request.py # Requestにswap_plan, swap_progress等を追加
         topology # waxmanトポロジー生成
     /exp
         main.py # シミュレーション実行プログラム
@@ -24,11 +27,16 @@
 - topology: line? grid? waxman?
 ## implementation details
   - ノード上のアプリケーション
-    - ``
+    - `NodeApp`
+      - 各エンドノード上で動くアプリケーション
+    - `ControllerApp`
+      - コントローラーノードで動くアプリケーション
+      - ネットワーク全体の制御を行う
   - パラメタ
     - `gen_rate`: p_genのかわりにもつれ生成のレートを決定
     - `p_swap`
     - `p_pur`
+    - `init_fidelity`: リンクレベルEPの初期忠実度
   - リクエスト `Request: net.requests[i]` の属性
     - `QNode: src`: the source node
     - `QNode: dst`: the destination node
