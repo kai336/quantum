@@ -119,7 +119,7 @@ class ControllerApp(Application):
         # qcのリストから各qcに存在するlinkを管理
         pass
 
-    def gen_single_EP(self, src: QNode, dest: QNode, fidelity: float):
+    def gen_single_EP(self, src: QNode, dest: QNode, fidelity: float, t: Time):
         # 1つのLinkEPを確定的に生成する
         link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=tc)
         self.links.append(link)
@@ -127,6 +127,7 @@ class ControllerApp(Application):
     def routine_gen_EP(self):
         # 全チャネルでリンクレベルもつれ生成
         # ５本のもつれあればそれ以上いらない
+        tc = self._simulator.tc()
         for qc in self.new_qc:
             nodes = qc.node_list
             # 同じチャネルのリンクレベルEPを数える
@@ -136,8 +137,9 @@ class ControllerApp(Application):
                     num_link += 1
             if num_link < l0_link_max:
                 self.gen_single_EP(
-                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init
+                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
                 )
+        # TODO: genrateに応じて次のイベントを追加
 
     def has_free_memory(self, node: QNode) -> bool:
         # ノードのメモリに空きがあるか
