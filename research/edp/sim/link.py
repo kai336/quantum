@@ -5,23 +5,26 @@ from qns.network.protocol.entanglement_distribution import QuantumChannel
 from qns.simulator import Time
 from typing import Tuple
 
+import uuid
+
 
 class LinkEP(Entity):
     """
     １つの link = bell pair を記述するクラス
+    name(uuid), fidelity, nodes, qc, created_at, status, swap_level
     """
 
     def __init__(
         self,
-        name: str = None,
+        name=None,
         fidelity: float = 0,
         nodes: Tuple[QNode, QNode] = None,
         qc: QuantumChannel = None,
         created_at: Time = None,
         status: str = None,
-        swap_level: int = 0,  # 何回のswapでできているか
+        swap_level: int = 0,  # 何回のswapでできているか ここ０ならリンクレベルEP
     ):
-        super().__init__(name=name)
+        super().__init__(name=uuid.uuid4())
         self.fidelity = fidelity
         self.nodes = nodes
 

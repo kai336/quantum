@@ -26,6 +26,7 @@ memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
 f_req = 0.8  # 最小要求忠実度
 init_fidelity = 0.99
+l0_link_max = 5  # リンクレベルEPのバッファ数
 
 
 class ControllerApp(Application):
@@ -41,12 +42,10 @@ class ControllerApp(Application):
         self.net: QuantumNetwork
         self.node: QNode
         self.requests: List[NewRequest] = []
-        self.links: List[
-            Tuple(QNode, QNode, float, List[LinkEP])
-        ]  # src, dest, links, init fidelity
+        self.links: List[LinkEP] = []  # シンプルにlinkEPぶち込んでEP管理
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] = []
-        self.new_net: QuantumNetwork = None  # qcがfidelityつき
+        self.new_net: QuantumNetwork = None  # ここに初期fidelityを記録
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -83,9 +82,12 @@ class ControllerApp(Application):
         for i in len(swap_plans):
             self.requests[i].swap_plans = swap_plans[i]
 
+    # iranai
     def init_links(self):
         # linkを管理するself.links
         # EPを簡易的にlinkとして取り扱う
+        # memory capacityをどう扱うか？->各ノードへの問い合わせ、占有数だけを考える&self.linksでは気にしない
+        # 初期状態はリンクレベルだけ
         for i in range(len(self.net.qchannels)):
             qc = self.net.qchannels[i]
             link = Tuple(qc.src, qc.dest, [])
@@ -102,6 +104,7 @@ class ControllerApp(Application):
             new_qcs.append(new_qc)
         self.new_net.qchannles = None
         self.new_net.qchannles = new_qc
+        self.new_qc = new_qc
 
     def init_event(self, t: Time):
         # 初期イベントを挿入
@@ -116,12 +119,27 @@ class ControllerApp(Application):
         # qcのリストから各qcに存在するlinkを管理
         pass
 
-    def gen_EP(self, src: QNode, dest: QNode):
+    def gen_single_EP(self, src: QNode, dest: QNode, fidelity: float):
         # 1つのLinkEPを確定的に生成する
-        tc = self._simulator.tc
-        link = LinkEP(fidelity=init_fidelity, nodes=(src, dest), created_at=tc)
-        for i in len(range(self.links)):
-            nodes = [self.links[i][0], self.links[i][1]]
-            if src and dest in nodes:
-                self.links[i][2].append(link)
-        # gen_rateに応じて次のイベント挿入
+        link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=tc)
+        self.links.append(link)
+
+    def routine_gen_EP(self):
+        # 全チャネルでリンクレベルもつれ生成
+        # ５本のもつれあればそれ以上いらない
+        for qc in self.new_qc:
+            nodes = qc.node_list
+            # 同じチャネルのリンクレベルEPを数える
+            num_link = 0
+            for link in self.links:
+                if set(link.nodes) == set(nodes):
+                    num_link += 1
+            if num_link < l0_link_max:
+                self.gen_single_EP(
+                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init
+                )
+
+    def has_free_memory(self, node: QNode) -> bool:
+        # ノードのメモリに空きがあるか
+        app = node.apps[0]
+        return app.memory_capacity > app.memory_usage

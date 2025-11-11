@@ -23,18 +23,24 @@ n_slot_per_sec = 100  # 1秒当たりのタイムスロット数
 
 
 class NodeApp(Application):
+    """
+    エンドノードのメモリやらを管理する
+    """
+
     def __init__(
         self,
         p_swap: float = p_swap,
         gen_rate: int = gen_rate,
+        memory_capacity: int = memory_capacity,
     ):
         super().__init__()
-        self.p_swap = p_swap
-        self.gen_rate = gen_rate
-
+        self.p_swap: float = p_swap
+        self.gen_rate: int = gen_rate
+        self.memory_capacity: int = memory_capacity
+        self.memory_usage: int = 0
         self.node = None
         self._simulator = None
-        self.memory = None
+        self.memories = None  # いらん
         self.net = None
         self.requests = None
         self.qc = None
@@ -44,7 +50,7 @@ class NodeApp(Application):
         super().install(node, simulator)
         self.node = node
         self._simulator = simulator
-        self.memory = node.memories
+        self.memories = node.memories
         self.net = node.network
         self.requests = node.requests
         self.qc = node.qchannels  # 接続されてる量子チャネル
