@@ -10,7 +10,7 @@ import uuid
 
 class LinkEP(Entity):
     """
-    １つの link = bell pair を記述するクラス
+    １つの link = bell pair を記述するクラス リンクレベルのリンクとは違う意味なのでややこしい
     name(uuid), fidelity, nodes, qc, created_at, status, swap_level
     """
 

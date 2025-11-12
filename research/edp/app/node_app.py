@@ -11,7 +11,7 @@ from qns.simulator.ts import Time
 import qns.utils.log as log
 import random
 
-from research.edp.sim.link import LinkEP
+from edp.sim.link import LinkEP
 
 # 初期値
 p_swap = 0.4

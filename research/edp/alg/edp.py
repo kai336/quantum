@@ -14,6 +14,7 @@ from typing import Dict, Tuple, List
 import math
 
 from edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
+from edp.sim.new_qchannel import NewQC
 
 # ネットワーク定義（例）
 fidelity = 0.9
@@ -22,7 +23,7 @@ fidelity = 0.9
 
 
 def qnet2DictConverter(
-    qcs: List[QuantumChannel], gen_rate: int
+    qcs: List[NewQC], gen_rate: int
 ) -> Dict[Tuple[str, str], Dict[str, float]]:
     qc_dict: Dict[...] = {}
     for qc in qcs:
@@ -50,21 +51,28 @@ F = [round(0.70 + 0.01 * i, 3) for i in range(31)]
 memo = {}
 
 
-def batch_EDP(qnet: QuantumNetwork):
+def batch_EDP(qnet: QuantumNetwork, gen_rate: int = 50):
     reqs = qnet.requests
-    qnet = qnet2DictConverter(qnet.qchannels)
+    qnet_dist = qnet2DictConverter(qnet.new_qcs, gen_rate=gen_rate)
     results = []
     for req in reqs:
-        res = EDP(req.src, req.dest, qnet=qnet)
+        print("req name: ", req.name)
+        print(req.src, req.dest)
+        paths = qnet.query_route(req.src, req.dest)
+        path = paths[0][2]
+        print("path:", path)
+        res = EDP(src=req.src, dest=req.dest, qnet=qnet_dist, path=path)
         results.append(res)
+    print(results)
     return results
 
 
 def EDP(
+    path: List[QNode],
     src: QNode,
     dest: QNode,
+    qnet: Dict[Tuple[QNode, QNode], Dict[str, float]],
     f_req: float = 0.7,
-    qnet: Dict[Tuple[str, str], Dict[str, float]] = {},
     depth: int = 0,
     max_depth: int = 20,
 ):
@@ -92,7 +100,7 @@ def EDP(
             best_tree = {"type": "Link", "link": (dest, src)}
 
     # Swap
-    path = ["A", "B", "C", "D", "E", "F"]  # ここどうする
+    # path = ["A", "B", "C", "D", "E", "F"]
     i_x = path.index(src)
     i_y = path.index(dest)
     if i_x > i_y:
@@ -104,8 +112,24 @@ def EDP(
             for f2 in F:
                 f_sw = f_swap(f1, f2)
                 if f_sw >= f_req:
-                    res1 = EDP(src, z, f1, depth + 1, max_depth)
-                    res2 = EDP(z, dest, f2, depth + 1, max_depth)
+                    res1 = EDP(
+                        path=path,
+                        src=src,
+                        dest=z,
+                        f_req=f1,
+                        qnet=qnet,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
+                    res2 = EDP(
+                        path=path,
+                        src=z,
+                        dest=dest,
+                        f_req=f2,
+                        qnet=qnet,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
                     if res1 and res2:
                         latency = l_swap(res1[0], res2[0])
                         if latency < best_latency:
@@ -125,7 +149,15 @@ def EDP(
             continue
         f_purify = f_pur(f0, f0)
         if f_purify >= f_req:
-            res = EDP(src, dest, f0, depth + 1, max_depth)
+            res = EDP(
+                path=path,
+                src=src,
+                dest=dest,
+                f_req=f0,
+                qnet=qnet,
+                depth=depth + 1,
+                max_depth=max_depth,
+            )
             if res:
                 latency = l_pur(res[0], f0)
                 if latency < best_latency:

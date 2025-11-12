@@ -13,10 +13,10 @@ from qns.simulator.ts import Time
 import qns.utils.log as log
 import random
 
-from research.edp.sim.new_request import NewRequest
-from research.edp.sim.link import LinkEP
-from research.edp.alg.edp import batch_EDP
-from research.edp.sim.new_qchannel import NewQC
+from edp.sim.new_request import NewRequest
+from edp.sim.link import LinkEP
+from edp.alg.edp import batch_EDP
+from edp.sim.new_qchannel import NewQC
 
 # 初期値
 p_swap = 0.4
@@ -54,11 +54,14 @@ class ControllerApp(Application):
         self.new_net = node.network
 
         # self.nodesでネットワーク上のノードを管理
-        self.nodes: List[QNode] = node.network.nodes
+        self.nodes: List[QNode] = node.network.nodes.copy()
         for n in self.nodes:
             if n is self.node:
                 self.nodes.remove(n)  # 自分自身(controller)をのぞく
                 break
+
+        self.init_qcs()
+        self.init_reqs()
 
     def init_reqs(self):
         # self.requestsでリクエストを管理
@@ -74,13 +77,14 @@ class ControllerApp(Application):
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
 
+        self.net.requests = self.requests.copy()
         self.route_EDP()  # ルーティングテーブル作成
 
     def route_EDP(self):
-        # EDPのルーティングテーブル作成
-        swap_plans = batch_EDP(qnet=self.new_net)
-        for i in len(swap_plans):
-            self.requests[i].swap_plans = swap_plans[i]
+        # EDPのswaping tree作成
+        swap_plans = batch_EDP(qnet=self.new_net, gen_rate=self.gen_rate)
+        for i in range(len(swap_plans)):
+            self.requests[i].swap_plan = swap_plans[i]
 
     # iranai
     def init_links(self):
@@ -90,7 +94,7 @@ class ControllerApp(Application):
         # 初期状態はリンクレベルだけ
         for i in range(len(self.net.qchannels)):
             qc = self.net.qchannels[i]
-            link = Tuple(qc.src, qc.dest, [])
+            link = (qc.node_list[0], qc.node_list[1], [])
             self.links.append(link)
 
     def init_qcs(self):
@@ -103,8 +107,9 @@ class ControllerApp(Application):
             new_qc = NewQC(name=name, node_list=node_list, fidelity_init=fidelity_init)
             new_qcs.append(new_qc)
         self.new_net.qchannles = None
-        self.new_net.qchannles = new_qc
-        self.new_qc = new_qc
+        self.new_net.qchannles = new_qcs
+        self.net.new_qcs = new_qcs
+        self.new_qc = new_qcs
 
     def init_event(self, t: Time):
         # 初期イベントを挿入
@@ -121,7 +126,7 @@ class ControllerApp(Application):
 
     def gen_single_EP(self, src: QNode, dest: QNode, fidelity: float, t: Time):
         # 1つのLinkEPを確定的に生成する
-        link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=tc)
+        link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=t)
         self.links.append(link)
 
     def routine_gen_EP(self):
