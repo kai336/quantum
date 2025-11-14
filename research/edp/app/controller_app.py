@@ -18,6 +18,12 @@ from edp.sim.link import LinkEP
 from edp.alg.edp import batch_EDP
 from edp.sim.new_qchannel import NewQC
 
+"""
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+swap_plan, swap_progressをどうするか真面目に考える
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+"""
+
 # 初期値
 p_swap = 0.4
 target_fidelity = 0.8
@@ -87,6 +93,7 @@ class ControllerApp(Application):
             self.requests[i].swap_plan = swap_plans[i]
 
     # iranai
+    """
     def init_links(self):
         # linkを管理するself.links
         # EPを簡易的にlinkとして取り扱う
@@ -96,6 +103,7 @@ class ControllerApp(Application):
             qc = self.net.qchannels[i]
             link = (qc.node_list[0], qc.node_list[1], [])
             self.links.append(link)
+    """
 
     def init_qcs(self):
         # qc.fidelityを設定
@@ -117,6 +125,22 @@ class ControllerApp(Application):
 
     def request_handler(self):
         # リクエストを管理
+        # req.swap_plan, req.swap_progressから各操作を実行
+        for req in self.requests:
+            req.swap_plan
+
+    def op_handler(self, op: str, n1: QNode, n2: QNode):
+        if op == "swap":
+            self.swap(n1, n2)
+        elif op == "purify":
+            self.purify(n1, n2)
+
+    def swap(self, n1: QNode, n2: QNode):
+        # swap
+        pass
+
+    def purify(self, n1: QNode, n2: QNode):
+        # purify
         pass
 
     def links_manager(self):

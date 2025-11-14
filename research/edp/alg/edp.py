@@ -1,12 +1,6 @@
 # edp.py
 # EDP algorithm
 
-"""
-!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!
-x, yのQNode入力に対応させる
-!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!
-"""
-
 from qns.entity.qchannel import QuantumChannel
 from qns.network import QuantumNetwork
 from qns.entity.node import QNode
