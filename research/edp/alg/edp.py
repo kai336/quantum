@@ -10,6 +10,9 @@ import math
 from edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
 from edp.sim.new_qchannel import NewQC
 
+from edp.sim.op import OP, build_ops_from_edp_result
+
+
 # ネットワーク定義（例）
 fidelity = 0.9
 
@@ -56,7 +59,9 @@ def batch_EDP(qnet: QuantumNetwork, gen_rate: int = 50):
         path = paths[0][2]
         print("path:", path)
         res = EDP(src=req.src, dest=req.dest, qnet=qnet_dist, path=path)
-        results.append(res)
+        if res is not None:
+            op_list = build_ops_from_edp_result(res)
+        results.append(op_list)
     print(results)
     return results
 

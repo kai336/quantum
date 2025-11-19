@@ -84,16 +84,15 @@ class ControllerApp(Application):
             src = req.src
             dest = req.dest
             name = f"req{i}"
-            # swap_plan = EDP(src, dest, f_req)  # ここで経路計算
             new_req = NewRequest(
                 src=src, dest=dest, name=name, priority=0
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
 
         self.net.requests = self.requests.copy()
-        self.route_EDP()  # ルーティングテーブル作成
+        self.build_EDP()  # ルーティングテーブル作成
 
-    def route_EDP(self):
+    def build_EDP(self):
         # EDPのswaping tree作成
         swap_plans = batch_EDP(qnet=self.new_net, gen_rate=self.gen_rate)
         for i in range(len(swap_plans)):

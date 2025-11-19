@@ -7,6 +7,7 @@ from qns.network.topology import GridTopology
 from qns.entity.node import QNode
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
+from edp.sim.op import OP, build_ops_from_edp_result
 
 # 初期値
 p_swap = 0.4
@@ -43,4 +44,5 @@ net.add_node(controller_node)
 net.install(s)
 
 cnode = net.get_node(name="controller")
-print(cnode.apps[0].requests[0].swap_plan)
+for i in range(len(cnode.apps[0].requests)):
+    print("swap_plan", i, ": ", cnode.apps[0].requests[i].swap_plan)
