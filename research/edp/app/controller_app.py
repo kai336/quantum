@@ -1,33 +1,33 @@
 # controller_app.py
 # main duty: controll the entire network
-from typing import Dict, Optional, List, Tuple
+import random
+from typing import Dict, List, Optional, Tuple
+
+import qns.utils.log as log
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network import QuantumNetwork
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
 from qns.simulator.ts import Time
 
-import qns.utils.log as log
-import random
-
-from edp.sim.new_request import NewRequest
-from edp.sim.link import LinkEP
 from edp.alg.edp import batch_EDP
+from edp.sim.link import LinkEP
 from edp.sim.new_qchannel import NewQC
+from edp.sim.new_request import NewRequest
 
 """
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 swap_plan, swap_progressをどうするか真面目に考える
-深さごとに配列にする？
-swap_plan[0]=[op, op, ...] -> リンクレベル(深さ0)の操作の配列
-・・・
-swap_plan[i]=[op, op, ...] -> 深さi
+opクラスつくって、各操作ごとに完了したかどうかを考える
+swap_plan = [op1, op2, ...]
 op.op
 op.parent
 op.child
+op.status
+op.ep <- この操作が完了した後にできるもつれ
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """
 
@@ -97,19 +97,6 @@ class ControllerApp(Application):
         swap_plans = batch_EDP(qnet=self.new_net, gen_rate=self.gen_rate)
         for i in range(len(swap_plans)):
             self.requests[i].swap_plan = swap_plans[i]
-
-    # iranai
-    """
-    def init_links(self):
-        # linkを管理するself.links
-        # EPを簡易的にlinkとして取り扱う
-        # memory capacityをどう扱うか？->各ノードへの問い合わせ、占有数だけを考える&self.linksでは気にしない
-        # 初期状態はリンクレベルだけ
-        for i in range(len(self.net.qchannels)):
-            qc = self.net.qchannels[i]
-            link = (qc.node_list[0], qc.node_list[1], [])
-            self.links.append(link)
-    """
 
     def init_qcs(self):
         # qc.fidelityを設定

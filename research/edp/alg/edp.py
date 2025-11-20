@@ -1,17 +1,16 @@
 # edp.py
 # EDP algorithm
 
+import math
+from typing import Dict, List, Tuple
+
+from qns.entity.node import QNode
 from qns.entity.qchannel import QuantumChannel
 from qns.network import QuantumNetwork
-from qns.entity.node import QNode
-from typing import Dict, Tuple, List
-import math
 
 from edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
 from edp.sim.new_qchannel import NewQC
-
 from edp.sim.op import OP, build_ops_from_edp_result
-
 
 # ネットワーク定義（例）
 fidelity = 0.9

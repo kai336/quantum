@@ -1,11 +1,11 @@
 # link.py
-from qns.entity.node.node import QNode
-from qns.entity import Entity
-from qns.network.protocol.entanglement_distribution import QuantumChannel
-from qns.simulator import Time
+import uuid
 from typing import Tuple
 
-import uuid
+from qns.entity import Entity
+from qns.entity.node.node import QNode
+from qns.network.protocol.entanglement_distribution import QuantumChannel
+from qns.simulator import Time
 
 
 class LinkEP(Entity):

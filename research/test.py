@@ -1,13 +1,13 @@
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.network.topology.topo import ClassicTopology
-from qns.simulator.simulator import Simulator
 from edp.alg.edp import qnet2DictConverter
-from qns.network import QuantumNetwork
-from qns.network.topology import GridTopology
-from qns.entity.node import QNode
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
 from edp.sim.op import OP, build_ops_from_edp_result
+from qns.entity.node import QNode
+from qns.network import QuantumNetwork
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology import GridTopology, LineTopology
+from qns.network.topology.topo import ClassicTopology
+from qns.simulator.simulator import Simulator
 
 # 初期値
 p_swap = 0.4
@@ -22,8 +22,8 @@ l0_link_max = 5  # リンクレベルEPのバッファ数
 s = Simulator(0, 10, 10000)
 
 # generate network with end nodes
-topo = GridTopology(
-    nodes_number=9,
+topo = LineTopology(
+    nodes_number=5,
     nodes_apps=[
         NodeApp(p_swap=p_swap, gen_rate=gen_rate, memory_capacity=memory_capacity)
     ],
@@ -33,7 +33,9 @@ net = QuantumNetwork(
 )
 # create routing table and requests before controller added
 net.build_route()
-net.random_requests(number=5, allow_overlay=True)
+src = net.get_node("n1")
+dest = net.get_node("n5")
+net.add_request(src=src, dest=dest)
 # add a controller node
 controller_node = QNode(
     name="controller",
