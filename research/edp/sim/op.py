@@ -1,4 +1,5 @@
 # swap, purify等の操作を扱うクラス
+# swapping treeを構成するノード
 from enum import Enum, auto
 from typing import List, Optional, Tuple
 
@@ -7,7 +8,7 @@ from qns.entity.node import QNode
 from edp.sim.link import LinkEP
 
 
-class Operation(Enum):
+class OperationType(Enum):
     SWAP = auto()
     PURIFY = auto()
     GEN_LINK = auto()
@@ -20,17 +21,17 @@ class OpStatus(Enum):
     DONE = auto()
 
 
-class OP:
+class Operation:
     def __init__(
         self,
         name: str,
-        op: Operation,
+        op: OperationType,
         n1: QNode,
         n2: QNode,
         via: Optional[QNode] = None,
         status: OpStatus = OpStatus.WAITING,
-        parent: Optional["OP"] = None,
-        children: Optional[List["OP"]] = None,
+        parent: Optional["Operation"] = None,
+        children: Optional[List["Operation"]] = None,
         ep: Optional[LinkEP] = None,
     ):
         self.name = name
@@ -73,24 +74,26 @@ class OP:
         # return f"OP(name={self.name}, op={self.op.name}, nodes={self.n1, self.n2, self.via} status={self.status.name})"
 
 
-def build_ops_from_edp_result(edp_result: Tuple[float, dict]) -> Tuple[OP, List[OP]]:
+def build_ops_from_edp_result(
+    edp_result: Tuple[float, dict],
+) -> Tuple[Operation, List[Operation]]:
     """
     EDP が返した (latency, tree_dict) から
     OP インスタンスの配列を作って返す
     """
     _, tree = edp_result
-    ops: List[OP] = []
-    root: OP | None = None
+    ops: List[Operation] = []
+    root: Operation | None = None
 
-    def _build(node_dict: dict, parent: OP | None = None) -> OP:
+    def _build(node_dict: dict, parent: Operation | None = None) -> Operation:
         nonlocal root
         node_type = node_dict["type"]
 
         if node_type == "Link":
             n1, n2 = node_dict["link"]
-            op = OP(
+            op = Operation(
                 name=f"GEN_LINK({n1.name}-{n2.name})",
-                op=Operation.GEN_LINK,
+                op=OperationType.GEN_LINK,
                 n1=n1,
                 n2=n2,
                 via=None,
@@ -103,9 +106,9 @@ def build_ops_from_edp_result(edp_result: Tuple[float, dict]) -> Tuple[OP, List[
             x = node_dict["x"]
             y = node_dict["y"]
 
-            op = OP(
+            op = Operation(
                 name=f"SWAP({x.name}-{via.name}-{y.name})",
-                op=Operation.SWAP,
+                op=OperationType.SWAP,
                 n1=x,
                 n2=y,
                 via=via,
@@ -121,9 +124,9 @@ def build_ops_from_edp_result(edp_result: Tuple[float, dict]) -> Tuple[OP, List[
             x = node_dict["x"]
             y = node_dict["y"]
 
-            op = OP(
+            op = Operation(
                 name=f"PURIFY({x.name}-{y.name})",
-                op=Operation.PURIFY,
+                op=OperationType.PURIFY,
                 n1=x,
                 n2=y,
                 parent=parent,

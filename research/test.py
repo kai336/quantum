@@ -1,7 +1,7 @@
 from edp.alg.edp import qnet2DictConverter
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
-from edp.sim.op import OP, build_ops_from_edp_result
+from edp.sim.op import Operation, build_ops_from_edp_result
 from qns.entity.node import QNode
 from qns.network import QuantumNetwork
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
@@ -44,6 +44,8 @@ controller_node = QNode(
 net.add_node(controller_node)
 
 net.install(s)
+
+s.run()
 
 cnode = net.get_node(name="controller")
 for i in range(len(cnode.apps[0].requests)):

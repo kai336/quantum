@@ -1,15 +1,16 @@
 # node_app.py
-from typing import Dict, Optional, List
+import random
+from typing import Dict, List, Optional
+
+import qns.utils.log as log
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network import QuantumNetwork
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
 from qns.simulator.ts import Time
-import qns.utils.log as log
-import random
 
 from edp.sim.link import LinkEP
 
@@ -83,3 +84,15 @@ class NodeApp(Application):
     def purify(self, qc1: QuantumChannel, qc2: QuantumChannel):
         # purify操作
         pass
+
+    @property
+    def has_free_memory(self) -> bool:
+        return self.memory_capacity > self.memory_usage
+
+    def use_single_memory(self):
+        assert self.memory_capacity > self.memory_usage
+        self.memory_usage += 1
+
+    def free_single_memory(self):
+        assert self.memory_usage > 0
+        self.memory_usage -= 1

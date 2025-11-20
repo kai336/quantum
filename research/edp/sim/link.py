@@ -11,7 +11,7 @@ from qns.simulator import Time
 class LinkEP(Entity):
     """
     １つの link = bell pair を記述するクラス リンクレベルのリンクとは違う意味なのでややこしい
-    name(uuid), fidelity, nodes, qc, created_at, status, swap_level
+    name(uuid), fidelity, nodes, qc, created_at, is_used, swap_level
     """
 
     def __init__(
@@ -21,18 +21,16 @@ class LinkEP(Entity):
         nodes: Tuple[QNode, QNode] = None,
         qc: QuantumChannel = None,
         created_at: Time = None,
-        status: str = None,
+        is_free: bool = True,
         swap_level: int = 0,  # 何回のswapでできているか ここ０ならリンクレベルEP
     ):
         super().__init__(name=uuid.uuid4())
         self.fidelity = fidelity
         self.nodes = nodes
-
-    def write_status(self, status: str):
-        self.status = status
-
-    def get_status(self):
-        return self.status
+        self.qc = qc
+        self.created_at = created_at
+        self.is_free = is_free
+        self.swap_level = swap_level
 
     def __repr__(self) -> str:
         if self.name is not None:
