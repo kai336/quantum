@@ -69,6 +69,9 @@ class Operation:
         if self.parent:
             self.parent.judge_ready()
 
+    def failed(self):
+        self.status = OpStatus.WAITING
+
     def __repr__(self) -> str:
         return f"{self.name}"
         # return f"OP(name={self.name}, op={self.op.name}, nodes={self.n1, self.n2, self.via} status={self.status.name})"

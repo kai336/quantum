@@ -1,3 +1,4 @@
+# test.py
 from edp.alg.edp import qnet2DictConverter
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
@@ -35,6 +36,7 @@ net = QuantumNetwork(
 net.build_route()
 src = net.get_node("n1")
 dest = net.get_node("n5")
+assert isinstance(src, QNode) and isinstance(dest, QNode)
 net.add_request(src=src, dest=dest)
 # add a controller node
 controller_node = QNode(

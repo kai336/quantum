@@ -10,6 +10,7 @@ from qns.network import QuantumNetwork
 
 from edp.sim.models import f_pur, f_swap, l_pur, l_swap, p_pur
 from edp.sim.new_qchannel import NewQC
+from edp.sim.new_request import NewRequest
 from edp.sim.op import Operation, build_ops_from_edp_result
 
 # ネットワーク定義（例）
@@ -20,8 +21,8 @@ fidelity = 0.9
 
 def qnet2DictConverter(
     qcs: List[NewQC], gen_rate: int
-) -> Dict[Tuple[str, str], Dict[str, float]]:
-    qc_dict: Dict[...] = {}
+) -> Dict[Tuple[QNode, QNode], Dict[str, float]]:
+    qc_dict: Dict = {}
     for qc in qcs:
         src = qc.node_list[0]
         dest = qc.node_list[1]
@@ -47,14 +48,16 @@ F = [round(0.70 + 0.01 * i, 3) for i in range(31)]
 memo = {}
 
 
-def batch_EDP(qnet: QuantumNetwork, gen_rate: int = 50):
-    reqs = qnet.requests
-    qnet_dist = qnet2DictConverter(qnet.new_qcs, gen_rate=gen_rate)
+def batch_EDP(
+    qnet: QuantumNetwork, reqs: List[NewRequest], qcs: List[NewQC], gen_rate: int = 50
+):
+    qnet_dist = qnet2DictConverter(qcs=qcs, gen_rate=gen_rate)
     results = []
     for req in reqs:
         print("req name: ", req.name)
         print(req.src, req.dest)
         paths = qnet.query_route(req.src, req.dest)
+        print(paths)
         path = paths[0][2]
         print("path:", path)
         res = EDP(src=req.src, dest=req.dest, qnet=qnet_dist, path=path)

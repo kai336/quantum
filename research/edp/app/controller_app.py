@@ -37,6 +37,7 @@ op.ep <- この操作が完了した後にできるもつれ
 
 # 初期値
 p_swap = 0.4
+p_pur = 0.9
 target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
@@ -51,9 +52,16 @@ class ControllerApp(Application):
     ネットワーク全体を制御(EP生成、スワップ計画、リクエスト管理)
     """
 
-    def __init__(self, p_swap: float = p_swap, gen_rate: int = gen_rate, f_req=f_req):
+    def __init__(
+        self,
+        p_swap: float = p_swap,
+        p_pur: float = p_pur,
+        gen_rate: int = gen_rate,
+        f_req=f_req,
+    ):
         super().__init__()
         self.p_swap: float = p_swap
+        self.p_pur: float = p_pur
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
         self.net: QuantumNetwork
@@ -62,14 +70,12 @@ class ControllerApp(Application):
         self.links: List[LinkEP] = []  # シンプルにlinkEPぶち込んでEP管理
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
-        self.new_net: QuantumNetwork | None = None  # ここに初期fidelityを記録
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
         self.node = node
         assert isinstance(node.network, QuantumNetwork)
         self.net = node.network
-        self.new_net = copy.deepcopy(node.network)
 
         # self.nodesでネットワーク上のノードを管理
         self.nodes = node.network.nodes.copy()
@@ -104,12 +110,13 @@ class ControllerApp(Application):
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
 
-        self.net.requests = self.requests.copy()
         self.build_EDP()  # ルーティングテーブル作成
 
     def build_EDP(self):
         # EDPのswaping tree作成
-        swap_plans = batch_EDP(qnet=self.new_net, gen_rate=self.gen_rate)
+        swap_plans = batch_EDP(
+            qnet=self.net, reqs=self.requests, qcs=self.new_qcs, gen_rate=self.gen_rate
+        )
         for i in range(len(swap_plans)):
             self.requests[i].swap_plan = swap_plans[i]
 
@@ -127,7 +134,7 @@ class ControllerApp(Application):
         # self.new_net.qchannels = None
         # self.new_net.qchannels = new_qcs
         # self.net.new_qcs = new_qcs
-        self.new_qc = new_qcs
+        self.new_qcs = new_qcs
 
     def request_handler_routine(self):
         # リクエストを管理
@@ -148,6 +155,7 @@ class ControllerApp(Application):
 
     def _run_op(self, req: NewRequest, op: Operation):
         # 操作を実行
+        op.start()
         if op.op == OperationType.GEN_LINK:
             self._handle_gen_link(op)
         elif op.op == OperationType.SWAP:
@@ -160,9 +168,8 @@ class ControllerApp(Application):
         pair = set((op.n1, op.n2))
         cand: Optional[LinkEP] = None
         for link in self.links:
-            if set(link.nodes) == pair:
-                if link.is_free:
-                    cand = link
+            if set(link.nodes) == pair and link.is_free:
+                cand = link
                 break
         if cand is None:
             # まだEPなし
@@ -182,22 +189,28 @@ class ControllerApp(Application):
         # 一応中間ノードの整合性チェック
         via = op.via
         assert via in ep_left.nodes and via in ep_right.nodes
-        new_fid = f_swap(ep_left.fidelity, ep_right.fidelity)
-        tc = self._simulator.tc
-        self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
 
-        # 使用済みEP廃棄
-        self.links.remove(ep_left)
-        self.links.remove(ep_right)
+        # 先にもとのもつれを廃棄しとく
+        # 失敗・成功にかかわらずもとのもつれは使えない　& 新たにメモリ消費することなくswapできるので
+        self.delete_EP(ep_left)
+        self.delete_EP(ep_right)
 
-        # メモリ管理 中間ノードのメモリ開放
-        self.free_single_memory(via)
-        self.free_single_memory(via)
+        # swap
+        if random.random() < self.p_swap:
+            # 新しいEP生成
+            new_fid = f_swap(ep_left.fidelity, ep_right.fidelity)
+            tc = self._simulator.tc
+            op.ep = self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
+            op.finish()
+        else:
+            op.failed()
 
     def _handle_purify(self, op: Operation):
         # purify
         # fidを更新
         # ほんとに正しい実装か？
+        #
+        # purify 準備
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
         assert ep_left is not None and ep_right is not None
@@ -214,8 +227,17 @@ class ControllerApp(Application):
             self.delete_EP(ep_left)
             new_fid = f_pur(ft=fid_r, fs=fid_l)
 
-        tc = self._simulator.tc
-        self.gen_single_EP(src=op.n1, dest=op.n2, fidelity=new_fid, t=tc)
+        # purify　実行
+        if random.random() < self.p_pur:
+            tc = self._simulator.tc
+            op.ep = self.gen_single_EP(src=op.n1, dest=op.n2, fidelity=new_fid, t=tc)
+        else:
+            if ep_left is None:
+                self.delete_EP(ep_right)
+            else:
+                self.delete_EP(ep_left)
+
+        op.finish()
 
     def links_manager(self):
         # qcのリストから各qcに存在するlinkを管理
@@ -223,18 +245,25 @@ class ControllerApp(Application):
         # 各ノードのmemory管理ともいえる
         pass
 
-    def gen_single_EP(self, src: QNode, dest: QNode, fidelity: float, t: Time):
+    def gen_single_EP(
+        self, src: QNode, dest: QNode, fidelity: float, t: Time
+    ) -> LinkEP | None:
         # 1つのLinkEPをメモリに空きがあればに生成する
-        if self.has_free_memory(src) and self.has_free_memory(dest):
+        if not (self.has_free_memory(src) and self.has_free_memory(dest)):
+            return None
+        else:
+            self.use_single_memory(src)
+            self.use_single_memory(dest)
             link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=t)
             self.links.append(link)
+            return link
 
     def routine_gen_EP(self):
         # 全チャネルでリンクレベルもつれ生成
         # ５本のもつれあればそれ以上いらない
         # メモリに空きがあるかも判定する
         tc = self._simulator.tc
-        for qc in self.new_qc:
+        for qc in self.new_qcs:
             nodes = qc.node_list
             # 同じチャネルのリンクレベルEPを数える
             num_link = 0
@@ -242,14 +271,9 @@ class ControllerApp(Application):
                 if set(link.nodes) == set(nodes):
                     num_link += 1
             if num_link < l0_link_max:
-                # メモリ判定
-                if self.has_free_memory(nodes[0]) and self.has_free_memory(nodes[1]):
-                    self.gen_single_EP(
-                        src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
-                    )
-                    # メモリ更新
-                    self.use_single_memory(nodes[0])
-                    self.use_single_memory(nodes[1])
+                _ = self.gen_single_EP(
+                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
+                )
 
         # TODO: genrateに応じて次のイベントを追加
 
@@ -274,3 +298,4 @@ class ControllerApp(Application):
         for node in ep.nodes:
             self.free_single_memory(node)
         self.links.remove(ep)
+        del ep
