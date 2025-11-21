@@ -2,7 +2,6 @@
 # main duty: controll the entire network
 import copy
 import random
-from os.path import isfile
 from typing import Dict, List, Optional, Tuple
 
 import qns.utils.log as log
@@ -205,36 +204,21 @@ class ControllerApp(Application):
     def _handle_purify(self, op: Operation):
         # purify
         # fidを更新
-        # ほんとに正しい実装か？
-        # op.childrenが２つあれば準備完了
         # purify 準備
-        ep_left = op.children[0].ep
-        ep_right = op.children[1].ep
-        assert ep_left is not None and ep_right is not None
+        ep_target, ep_sacrifice = op.pur_eps
+        assert ep_target is not None and ep_sacrifice is not None
 
-        fid_l = ep_left.fidelity
-        fid_r = ep_right.fidelity
-        if fid_l < fid_r:
-            # rが犠牲
-            self.delete_EP(ep_right)
-            new_fid = f_pur(ft=fid_l, fs=fid_r)
+        fid_target = ep_target.fidelity
+        fid_sacrifice = ep_sacrifice.fidelity
 
-        else:
-            # lが犠牲
-            self.delete_EP(ep_left)
-            new_fid = f_pur(ft=fid_r, fs=fid_l)
+        self.delete_EP(ep_sacrifice)  # どっちにしろ犠牲になるのでfidも取ったし消しとく
+        new_fid = f_pur(ft=fid_target, fs=fid_sacrifice)  # purify成功後のfidelity
 
         # purify　実行
         if random.random() < self.p_pur:
-            tc = self._simulator.tc
-            op.ep = self.gen_single_EP(
-                src=op.n1, dest=op.n2, fidelity=new_fid, t=tc, is_free=False
-            )
-        else:
-            if ep_left is None:
-                self.delete_EP(ep_right)
-            else:
-                self.delete_EP(ep_left)
+            ep_target.fidelity = new_fid  # fidelity更新
+        else:  # 失敗したらtargetEPも消す
+            self.delete_EP(ep_target)
 
         op.finish()
 

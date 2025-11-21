@@ -36,7 +36,7 @@ class Operation:
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
         ep: Optional[LinkEP] = None,
-        pur_eps: List[LinkEP] = [],
+        pur_eps: Optional[List[LinkEP]] = None,
     ):
         self.name = name
         self.op = op
@@ -47,7 +47,7 @@ class Operation:
         self.parent = parent
         self.children = children or []
         self.ep = ep  # この操作が完了した後にできるもつれ
-        self.pur_eps = pur_eps
+        self.pur_eps = pur_eps or []
 
     def is_leaf(self) -> bool:
         # 自分が葉ノードかどうか
@@ -72,15 +72,23 @@ class Operation:
     def _judge_ready_purify(self):
         # self.pur_epsの数で判定
         # pur_epsは更新前
-        if len(self.pur_eps) == 1:
-            # すでに１つEPがある
+        num_eps = len(self.pur_eps)
+        if num_eps == 0:
+            # targetEPができた
+            # 子のEPを自分に移して、再生成
+            ep_child = copy.deepcopy(self.children[0].ep)
+            self.children[0].ep = None
+            assert isinstance(ep_child, LinkEP)
+            self.pur_eps.append(ep_child)
+            self.request_regen()
+        elif num_eps == 1:
+            # すでに１つtargetEPがあり、sacrificeEPができた
             # 子のEPを自分に移して、子の状態をDONEにする
             ep_child = copy.deepcopy(self.children[0].ep)
             self.children[0].ep = None
             assert isinstance(ep_child, LinkEP)
             self.pur_eps.append(ep_child)
             self.status = OpStatus.READY
-            return
 
     def start(self):
         # 実行開始
@@ -93,7 +101,6 @@ class Operation:
             self.parent.judge_ready()
 
     def failed(self):
-        # 自分より下のノードを初期化
         self.status = OpStatus.WAITING
         self.ep = None
 
@@ -101,8 +108,9 @@ class Operation:
         # このOPに必要なEPを再生成
         self.status = OpStatus.RETRY
         self.ep = None
-        for c in self.children:
-            c.request_regen()
+        if not self.is_leaf():  # 葉でとめる
+            for c in self.children:
+                c.request_regen()
 
     def __repr__(self) -> str:
         return f"{self.name}"
