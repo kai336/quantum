@@ -42,7 +42,7 @@ target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
-f_req = 0.8  # 最小要求忠実度
+f_req = 0.97  # 最小要求忠実度
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
 
@@ -106,7 +106,7 @@ class ControllerApp(Application):
             dest = req.dest
             name = f"req{i}"
             new_req = NewRequest(
-                src=src, dest=dest, name=name, priority=0
+                src=src, dest=dest, name=name, priority=0, f_req=f_req
             )  # リクエストのインスタンス作成
             self.requests.append(new_req)
 

@@ -60,10 +60,15 @@ def batch_EDP(
         print(paths)
         path = paths[0][2]
         print("path:", path)
-        res = EDP(src=req.src, dest=req.dest, qnet=qnet_dist, path=path)
+        print("f_req: ", req.f_req)
+        res = EDP(
+            src=req.src, dest=req.dest, qnet=qnet_dist, path=path, f_req=req.f_req
+        )
         if res is not None:
             op_list = build_ops_from_edp_result(res)
-        results.append(op_list)
+            results.append(op_list)
+        else:
+            print("no swapping tree found")
     print(results)
     return results
 

@@ -19,6 +19,8 @@ class OpStatus(Enum):
     READY = auto()
     RUNNING = auto()
     DONE = auto()
+    FAILED = auto()
+    RETRY = auto()
 
 
 class Operation:
@@ -71,6 +73,14 @@ class Operation:
 
     def failed(self):
         self.status = OpStatus.WAITING
+        self.ep = None
+
+    def request_regen(self):
+        # このOPに必要なEPを再生成
+        self.status = OpStatus.RETRY
+        self.ep = None
+        for c in self.children:
+            c.request_regen()
 
     def __repr__(self) -> str:
         return f"{self.name}"
