@@ -32,7 +32,7 @@ class Operation:
         n1: QNode,
         n2: QNode,
         via: Optional[QNode] = None,
-        status: OpStatus = OpStatus.WAITING,
+        status: Optional[OpStatus] = None,
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
         ep: Optional[LinkEP] = None,
@@ -40,7 +40,7 @@ class Operation:
     ):
         self.name = name
         self.op = op
-        self.status = status
+        self.status = status or OpStatus.WAITING
         self.n1 = n1
         self.n2 = n2
         self.via = via
@@ -106,11 +106,13 @@ class Operation:
 
     def request_regen(self):
         # このOPに必要なEPを再生成
-        self.status = OpStatus.RETRY
         self.ep = None
-        if not self.is_leaf():  # 葉でとめる
+        if not self.is_leaf():
+            self.status = OpStatus.RETRY
             for c in self.children:
                 c.request_regen()
+        else:  # 葉で再帰とめる
+            self.status = OpStatus.READY
 
     def __repr__(self) -> str:
         return f"{self.name}"
@@ -137,6 +139,7 @@ def build_ops_from_edp_result(
             op = Operation(
                 name=f"GEN_LINK({n1.name}-{n2.name})",
                 op=OpType.GEN_LINK,
+                status=OpStatus.READY,  # ここでGENLINKをあらかじめ実行できるようにしとく
                 n1=n1,
                 n2=n2,
                 via=None,

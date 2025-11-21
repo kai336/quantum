@@ -17,7 +17,7 @@ from edp.sim.link import LinkEP
 # 初期値
 p_swap = 0.4
 target_fidelity = 0.8
-memory_capacity = 5
+memory_capacity = 10
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
 n_slot_per_sec = 100  # 1秒当たりのタイムスロット数
