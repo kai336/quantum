@@ -24,7 +24,7 @@ class LinkEP(Entity):
         is_free: bool = True,
         swap_level: int = 0,  # 何回のswapでできているか ここ０ならリンクレベルEP
     ):
-        super().__init__(name=uuid.uuid4())
+        super().__init__(name=str(uuid.uuid4()))
         self.fidelity = fidelity
         self.nodes = nodes
         self.qc = qc
