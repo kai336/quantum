@@ -2,6 +2,7 @@
 # main duty: controll the entire network
 import copy
 import random
+from os.path import isfile
 from typing import Dict, List, Optional, Tuple
 
 import qns.utils.log as log
@@ -20,7 +21,7 @@ from edp.sim.link import LinkEP
 from edp.sim.models import f_pur, f_swap
 from edp.sim.new_qchannel import NewQC
 from edp.sim.new_request import NewRequest
-from edp.sim.op import Operation, OperationType, OpStatus
+from edp.sim.op import Operation, OpStatus, OpType
 
 """
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -130,10 +131,6 @@ class ControllerApp(Application):
             new_qc = NewQC(name=name, node_list=node_list, fidelity_init=fidelity_init)
             new_qcs.append(new_qc)
 
-        # 使ってない
-        # self.new_net.qchannels = None
-        # self.new_net.qchannels = new_qcs
-        # self.net.new_qcs = new_qcs
         self.new_qcs = new_qcs
 
     def request_handler_routine(self):
@@ -149,18 +146,18 @@ class ControllerApp(Application):
     ):
         # リクエストを１操作分進める
         for op in ops:
-            op.judge_ready()
+            # op.judge_ready() # OPに更新あったとき、連鎖的に接続されるOPも更新されるのでいらない説
             if op.status == OpStatus.READY:
                 self._run_op(req, op)
 
     def _run_op(self, req: NewRequest, op: Operation):
         # 操作を実行
         op.start()
-        if op.op == OperationType.GEN_LINK:
+        if op.op == OpType.GEN_LINK:
             self._handle_gen_link(op)
-        elif op.op == OperationType.SWAP:
+        elif op.op == OpType.SWAP:
             self._handle_swap(op)
-        elif op.op == OperationType.PURIFY:
+        elif op.op == OpType.PURIFY:
             self._handle_purify(op)
 
     def _handle_gen_link(self, op: Operation):
@@ -209,7 +206,7 @@ class ControllerApp(Application):
         # purify
         # fidを更新
         # ほんとに正しい実装か？
-        #
+        # op.childrenが２つあれば準備完了
         # purify 準備
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
@@ -230,7 +227,9 @@ class ControllerApp(Application):
         # purify　実行
         if random.random() < self.p_pur:
             tc = self._simulator.tc
-            op.ep = self.gen_single_EP(src=op.n1, dest=op.n2, fidelity=new_fid, t=tc)
+            op.ep = self.gen_single_EP(
+                src=op.n1, dest=op.n2, fidelity=new_fid, t=tc, is_free=False
+            )
         else:
             if ep_left is None:
                 self.delete_EP(ep_right)
@@ -246,7 +245,7 @@ class ControllerApp(Application):
         pass
 
     def gen_single_EP(
-        self, src: QNode, dest: QNode, fidelity: float, t: Time
+        self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
     ) -> LinkEP | None:
         # 1つのLinkEPをメモリに空きがあればに生成する
         if not (self.has_free_memory(src) and self.has_free_memory(dest)):
@@ -254,7 +253,9 @@ class ControllerApp(Application):
         else:
             self.use_single_memory(src)
             self.use_single_memory(dest)
-            link = LinkEP(fidelity=fidelity, nodes=(src, dest), created_at=t)
+            link = LinkEP(
+                fidelity=fidelity, nodes=(src, dest), created_at=t, is_free=is_free
+            )
             self.links.append(link)
             return link
 

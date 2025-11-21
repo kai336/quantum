@@ -1,5 +1,6 @@
 # swap, purify等の操作を扱うクラス
 # swapping treeを構成するノード
+import copy
 from enum import Enum, auto
 from typing import List, Optional, Tuple
 
@@ -8,7 +9,7 @@ from qns.entity.node import QNode
 from edp.sim.link import LinkEP
 
 
-class OperationType(Enum):
+class OpType(Enum):
     SWAP = auto()
     PURIFY = auto()
     GEN_LINK = auto()
@@ -27,7 +28,7 @@ class Operation:
     def __init__(
         self,
         name: str,
-        op: OperationType,
+        op: OpType,
         n1: QNode,
         n2: QNode,
         via: Optional[QNode] = None,
@@ -35,6 +36,7 @@ class Operation:
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
         ep: Optional[LinkEP] = None,
+        pur_eps: List[LinkEP] = [],
     ):
         self.name = name
         self.op = op
@@ -45,6 +47,7 @@ class Operation:
         self.parent = parent
         self.children = children or []
         self.ep = ep  # この操作が完了した後にできるもつれ
+        self.pur_eps = pur_eps
 
     def is_leaf(self) -> bool:
         # 自分が葉ノードかどうか
@@ -58,8 +61,26 @@ class Operation:
 
     def judge_ready(self):
         # 自分が準備完了かどうか
-        if self.can_run() and self.status == OpStatus.WAITING:
+        # purifyの場合
+        # 子ノードが完了したときにこの関数が呼ばれる
+        if self.op == OpType.PURIFY:
+            self._judge_ready_purify()
+        # purify以外
+        elif self.can_run() and self.status == OpStatus.WAITING:
             self.status = OpStatus.READY
+
+    def _judge_ready_purify(self):
+        # self.pur_epsの数で判定
+        # pur_epsは更新前
+        if len(self.pur_eps) == 1:
+            # すでに１つEPがある
+            # 子のEPを自分に移して、子の状態をDONEにする
+            ep_child = copy.deepcopy(self.children[0].ep)
+            self.children[0].ep = None
+            assert isinstance(ep_child, LinkEP)
+            self.pur_eps.append(ep_child)
+            self.status = OpStatus.READY
+            return
 
     def start(self):
         # 実行開始
@@ -72,6 +93,7 @@ class Operation:
             self.parent.judge_ready()
 
     def failed(self):
+        # 自分より下のノードを初期化
         self.status = OpStatus.WAITING
         self.ep = None
 
@@ -106,7 +128,7 @@ def build_ops_from_edp_result(
             n1, n2 = node_dict["link"]
             op = Operation(
                 name=f"GEN_LINK({n1.name}-{n2.name})",
-                op=OperationType.GEN_LINK,
+                op=OpType.GEN_LINK,
                 n1=n1,
                 n2=n2,
                 via=None,
@@ -121,7 +143,7 @@ def build_ops_from_edp_result(
 
             op = Operation(
                 name=f"SWAP({x.name}-{via.name}-{y.name})",
-                op=OperationType.SWAP,
+                op=OpType.SWAP,
                 n1=x,
                 n2=y,
                 via=via,
@@ -139,7 +161,7 @@ def build_ops_from_edp_result(
 
             op = Operation(
                 name=f"PURIFY({x.name}-{y.name})",
-                op=OperationType.PURIFY,
+                op=OpType.PURIFY,
                 n1=x,
                 n2=y,
                 parent=parent,
