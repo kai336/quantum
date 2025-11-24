@@ -1,6 +1,5 @@
 # swap, purify等の操作を扱うクラス
 # swapping treeを構成するノード
-import copy
 from enum import Enum, auto
 from typing import List, Optional, Tuple
 
@@ -20,7 +19,6 @@ class OpStatus(Enum):
     READY = auto()
     RUNNING = auto()
     DONE = auto()
-    FAILED = auto()
     RETRY = auto()
 
 
@@ -36,7 +34,7 @@ class Operation:
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
         ep: Optional[LinkEP] = None,
-        pur_eps: Optional[List[LinkEP]] = None,
+        pur_eps: List[LinkEP] = [],
     ):
         self.name = name
         self.op = op
@@ -72,29 +70,28 @@ class Operation:
     def _judge_ready_purify(self):
         # self.pur_epsの数で判定
         # pur_epsは更新前
+        # 子のEPの所有権を自分に移す
         num_eps = len(self.pur_eps)
+        op_child = self.children[0]
+        ep_child = op_child.ep
+        assert ep_child is not None
+        ep_child.change_owner(pre_owner=op_child, new_owner=self)
+        assert isinstance(ep_child, LinkEP)
+        self.pur_eps.append(ep_child)
+
         if num_eps == 0:
             # targetEPができた
-            # 子のEPを自分に移して、再生成
-            ep_child = copy.deepcopy(self.children[0].ep)
-            self.children[0].ep = None
-            assert isinstance(ep_child, LinkEP)
-            self.pur_eps.append(ep_child)
-            self.request_regen()
+            self.request_regen()  # sacrificeの生成をリクエスト
         elif num_eps == 1:
             # すでに１つtargetEPがあり、sacrificeEPができた
             # 子のEPを自分に移して、子の状態をDONEにする
-            ep_child = copy.deepcopy(self.children[0].ep)
-            self.children[0].ep = None
-            assert isinstance(ep_child, LinkEP)
-            self.pur_eps.append(ep_child)
             self.status = OpStatus.READY
 
     def start(self):
         # 実行開始
         self.status = OpStatus.RUNNING
 
-    def finish(self):
+    def done(self):
         # 実行完了して親に伝える
         self.status = OpStatus.DONE
         if self.parent:
@@ -103,10 +100,12 @@ class Operation:
     def failed(self):
         self.status = OpStatus.WAITING
         self.ep = None
+        # request_regenでいい
 
     def request_regen(self):
         # このOPに必要なEPを再生成
         self.ep = None
+        self.pur_eps.clear()
         if not self.is_leaf():
             self.status = OpStatus.RETRY
             for c in self.children:

@@ -1,6 +1,5 @@
 # controller_app.py
 # main duty: controll the entire network
-import copy
 import random
 from typing import Dict, List, Optional, Tuple
 
@@ -162,19 +161,18 @@ class ControllerApp(Application):
     def _handle_gen_link(self, op: Operation):
         # 生成済みEPを探す
         pair = set((op.n1, op.n2))
-        cand: Optional[LinkEP] = None
+        ep_cand: Optional[LinkEP] = None
         for link in self.links:
             if set(link.nodes) == pair and link.is_free:
-                cand = link
+                ep_cand = link
                 break
-        if cand is None:
+        if ep_cand is None:
             # まだEPなし
             op.status = OpStatus.WAITING
             return
 
-        op.ep = cand  # OPにEPを紐づけ
-        cand.is_free = False  # EPの状態更新
-        op.finish()
+        ep_cand.set_owner(op)
+        op.done()
 
     def _handle_swap(self, op: Operation):
         # swap
@@ -197,15 +195,18 @@ class ControllerApp(Application):
             # 新しいEP生成
             new_fid = f_swap(ep_left.fidelity, ep_right.fidelity)
             tc = self._simulator.tc
-            op.ep = self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
-            op.finish()
+            new_ep = self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
+            new_ep.set_owner(op)
+            op.done()
         else:
-            op.failed()
+            # 再生成要求
+            op.request_regen()
 
     def _handle_purify(self, op: Operation):
         # purify
         # fidを更新
         # purify 準備
+        assert len(op.pur_eps) == 2
         ep_target, ep_sacrifice = op.pur_eps
         assert ep_target is not None and ep_sacrifice is not None
 
@@ -218,10 +219,12 @@ class ControllerApp(Application):
         # purify　実行
         if random.random() < self.p_pur:
             ep_target.fidelity = new_fid  # fidelity更新
+            pre = op.children[0]
+            ep_target.change_owner(pre_owner=pre, new_owner=op)
+            op.done()
         else:  # 失敗したらtargetEPも消す
             self.delete_EP(ep_target)
-
-        op.finish()
+            op.request_regen()
 
     def links_manager(self):
         # qcのリストから各qcに存在するlinkを管理
@@ -256,6 +259,7 @@ class ControllerApp(Application):
             for link in self.links:
                 if link.nodes is not None and set(link.nodes) == set(nodes):
                     num_link += 1
+            # 一定数以下なら生成
             if num_link < l0_link_max:
                 _ = self.gen_single_EP(
                     src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
