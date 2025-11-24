@@ -19,9 +19,9 @@ class LinkEP(Entity):
 
     def __init__(
         self,
+        nodes: Tuple[QNode, QNode],
         name: Optional[str] = None,
         fidelity: float = 0,
-        nodes: Optional[Tuple[QNode, QNode]] = None,
         qc: Optional[QuantumChannel] = None,
         created_at: Optional[Time] = None,
         is_free: bool = True,

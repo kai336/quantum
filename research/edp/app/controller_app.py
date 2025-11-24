@@ -184,6 +184,7 @@ class ControllerApp(Application):
 
         # 一応中間ノードの整合性チェック
         via = op.via
+        assert via is not None
         assert via in ep_left.nodes and via in ep_right.nodes
 
         # 先にもとのもつれを廃棄しとく
@@ -253,7 +254,7 @@ class ControllerApp(Application):
             # 同じチャネルのリンクレベルEPを数える
             num_link = 0
             for link in self.links:
-                if set(link.nodes) == set(nodes):
+                if link.nodes is not None and set(link.nodes) == set(nodes):
                     num_link += 1
             if num_link < l0_link_max:
                 _ = self.gen_single_EP(
