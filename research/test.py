@@ -1,4 +1,7 @@
 # test.py
+import logging
+
+import qns.utils.log as log
 from edp.alg.edp import qnet2DictConverter
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
@@ -20,8 +23,8 @@ f_req = 0.8  # 最小要求忠実度
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
 
-s = Simulator(0, 10, 10000)
-
+s = Simulator(0, 1000000, 1)
+log.logger.setLevel(logging.DEBUG)
 # generate network with end nodes
 topo = LineTopology(
     nodes_number=5,

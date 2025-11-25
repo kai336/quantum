@@ -64,7 +64,7 @@ class Operation:
         if self.op == OpType.PURIFY:
             self._judge_ready_purify()
         # purify以外
-        elif self.can_run() and self.status == OpStatus.WAITING:
+        elif self.can_run() and self.status in (OpStatus.WAITING, OpStatus.RETRY):
             self.status = OpStatus.READY
 
     def _judge_ready_purify(self):
@@ -80,11 +80,12 @@ class Operation:
         self.pur_eps.append(ep_child)
 
         if num_eps == 0:
-            # targetEPができた
-            self.request_regen()  # sacrificeの生成をリクエスト
+            # targetEPができたのでsacrifice用に子だけ再実行を要求
+            self.status = OpStatus.WAITING
+            for c in self.children:
+                c.request_regen()
         elif num_eps == 1:
-            # すでに１つtargetEPがあり、sacrificeEPができた
-            # 子のEPを自分に移して、子の状態をDONEにする
+            # sacrificeEPができた
             self.status = OpStatus.READY
 
     def start(self):
@@ -92,7 +93,7 @@ class Operation:
         self.status = OpStatus.RUNNING
 
     def done(self):
-        # 実行完了して親に伝える
+        # 実行完了して親に伝える or req完了を伝える
         self.status = OpStatus.DONE
         if self.parent:
             self.parent.judge_ready()
