@@ -82,10 +82,12 @@ class ControllerApp(Application):
 
     def init_event(self, t: Time):
         # 初期イベントを挿入
-        ep_routine = func_to_event(t=t, fn=self.routine_gen_EP, by=self)
-        self._simulator.add_event(ep_routine)
+        gen_ep_routine = func_to_event(t=t, fn=self.gen_EP_routine, by=self)
+        self._simulator.add_event(gen_ep_routine)
         req_routine = func_to_event(t=t, fn=self.request_handler_routine, by=self)
         self._simulator.add_event(req_routine)
+        link_routine = func_to_event(t=t, fn=self.links_manager_routine, by=self)
+        self._simulator.add_event(link_routine)
 
     def init_reqs(self):
         # self.requestsでリクエストを管理
@@ -128,25 +130,38 @@ class ControllerApp(Application):
         # !!!!!TODO!!!!!: 終了判定
         is_all_done = True
         for req in self.requests:
+            # 終了判定
+            root_op, ops = req.swap_plan
+            assert isinstance(root_op, Operation)
+            if root_op.status == OpStatus.DONE:
+                req.is_done = True
+                print("!!!!!!!!req finished!!!!!!!!")
+
             if req.is_done:
                 continue
             else:
                 is_all_done = False
-                root_op, ops = req.swap_plan
                 self._advance_request(req, root_op, ops)
 
         if is_all_done:
+            # 全リクエスト終わったらシミュレータのイベント全消しして終了
             # TODO self.result = [time, ...]
             log.debug("all requests finished!!")
             self._simulator.event_pool.event_list.clear()
+            return
+
+        self._add_tick_event(fn=self.request_handler_routine)
+
+    def _request_is_done(self):
+        pass
 
     def _advance_request(
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
     ):
         # リクエストを１操作分進める
         for op in ops:
-            # op.judge_ready() # OPに更新あったとき、連鎖的に接続されるOPも更新されるのでいらない説
             if op.status == OpStatus.READY:
+                print(self._simulator.tc, op, "start op")
                 self._run_op(req, op)
 
     def _run_op(self, req: NewRequest, op: Operation):
@@ -169,9 +184,11 @@ class ControllerApp(Application):
                 break
         if ep_cand is None:
             # まだEPなし
-            op.status = OpStatus.WAITING
+            print(self._simulator.tc, "no link")
+            op.request_regen()  # 再試行できるようREADYに戻す
             return
 
+        print(self._simulator.tc, "gen link success")
         ep_cand.set_owner(op)
         op.done()
 
@@ -199,8 +216,10 @@ class ControllerApp(Application):
             new_ep = self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
             new_ep.set_owner(op)
             op.done()
+            print(self._simulator.tc, "swap success")
         else:
             # 再生成要求
+            print(self._simulator.tc, "swap failed")
             op.request_regen()
 
     def _handle_purify(self, op: Operation):
@@ -217,32 +236,36 @@ class ControllerApp(Application):
         self.delete_EP(ep_sacrifice)  # どっちにしろ犠牲になるのでfidも取ったし消しとく
         new_fid = f_pur(ft=fid_target, fs=fid_sacrifice)  # purify成功後のfidelity
 
+        op.pur_eps.clear()
         # purify　実行
         if random.random() < self.p_pur:
+            print(self._simulator.tc, "purify success")
             ep_target.fidelity = new_fid  # fidelity更新
-            pre = op.children[0]
-            ep_target.change_owner(pre_owner=pre, new_owner=op)
+            # すでにownerは自分になっているので念のため確認だけする
+            if ep_target.owner_op is not op:
+                pre = op.children[0]
+                ep_target.change_owner(pre_owner=pre, new_owner=op)
             op.done()
         else:  # 失敗したらtargetEPも消す
+            print(self._simulator.tc, "purify failed")
             self.delete_EP(ep_target)
             op.request_regen()
 
-    def links_manager(self):
+        assert len(op.pur_eps) == 0
+
+    def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
         for link in self.links:
             # link.decoherence(delta_t)てきな操作
             pass
-        t_tick = Time(time_slot=1)
-        tc = self._simulator.tc
-        tn = tc.__add__(t_tick)
-        next_event = func_to_event(t=tn, fn=self.links_manager, by=self)
-        self._simulator.add_event(next_event)
+        self._add_tick_event(fn=self.links_manager_routine)
 
     def gen_single_EP(
         self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
     ) -> LinkEP | None:
         # 1つのLinkEPをメモリに空きがあればに生成する
         if not (self.has_free_memory(src) and self.has_free_memory(dest)):
+            print(self._simulator.tc, "no memory")
             return None
         else:
             self.use_single_memory(src)
@@ -253,7 +276,7 @@ class ControllerApp(Application):
             self.links.append(link)
             return link
 
-    def routine_gen_EP(self):
+    def gen_EP_routine(self):
         # 全チャネルでリンクレベルもつれ生成
         # ５本のもつれあればそれ以上いらない
         # メモリに空きがあるかも判定する
@@ -270,11 +293,14 @@ class ControllerApp(Application):
                 _ = self.gen_single_EP(
                     src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
                 )
+                print(self._simulator.tc, "gen link")
 
         # gen_rateに応じて次のイベントを挿入
-        delta_t: float = 1 / self.gen_rate
-        tn = tc.__add__(delta_t)
-        next_event = func_to_event(t=tn, fn=self.routine_gen_EP, by=self)
+        # delta_t: float = 1 / self.gen_rate
+        # tn = tc.__add__(delta_t)
+        dt = Time(time_slot=50)
+        tn = tc.__add__(dt)
+        next_event = func_to_event(t=tn, fn=self.gen_EP_routine, by=self)
         self._simulator.add_event(next_event)
 
     def has_free_memory(self, node: QNode) -> bool:
@@ -286,12 +312,12 @@ class ControllerApp(Application):
     def use_single_memory(self, node: QNode):
         assert isinstance(node.apps[0], NodeApp)
         app: NodeApp = node.apps[0]
-        app.use_single_memory
+        app.use_single_memory()
 
     def free_single_memory(self, node: QNode):
         assert isinstance(node.apps[0], NodeApp)
         app: NodeApp = node.apps[0]
-        app.free_single_memory
+        app.free_single_memory()
 
     def delete_EP(self, ep: LinkEP):
         # メモリ開放とself.linksから削除
@@ -299,3 +325,10 @@ class ControllerApp(Application):
             self.free_single_memory(node)
         self.links.remove(ep)
         del ep
+
+    def _add_tick_event(self, fn):
+        t_tick = Time(time_slot=1)
+        tc = self._simulator.tc
+        tn = tc.__add__(t_tick)
+        next_event = func_to_event(t=tn, fn=fn, by=self)
+        self._simulator.add_event(next_event)
