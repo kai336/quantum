@@ -4,10 +4,8 @@ import random
 from typing import Dict, List, Optional, Tuple
 
 import qns.utils.log as log
-from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
-from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.network import QuantumNetwork
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
@@ -23,14 +21,7 @@ from edp.sim.op import Operation, OpStatus, OpType
 
 """
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-swap_plan, swap_progressをどうするか真面目に考える
-opクラスつくって、各操作ごとに完了したかどうかを考える
-swap_plan = [op1, op2, ...]
-op.op
-op.parent
-op.child
-op.status
-op.ep <- この操作が完了した後にできるもつれ
+routine系の関数で次のイベント挿入
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """
 
@@ -135,9 +126,19 @@ class ControllerApp(Application):
         # リクエストを管理
         # req.swap_plan, req.swap_progressから各操作を実行
         # !!!!!TODO!!!!!: 終了判定
+        is_all_done = True
         for req in self.requests:
-            root_op, ops = req.swap_plan
-            self._advance_request(req, root_op, ops)
+            if req.is_done:
+                continue
+            else:
+                is_all_done = False
+                root_op, ops = req.swap_plan
+                self._advance_request(req, root_op, ops)
+
+        if is_all_done:
+            # TODO self.result = [time, ...]
+            log.debug("all requests finished!!")
+            self._simulator.event_pool.event_list.clear()
 
     def _advance_request(
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
@@ -227,10 +228,15 @@ class ControllerApp(Application):
             op.request_regen()
 
     def links_manager(self):
-        # qcのリストから各qcに存在するlinkを管理
-        # デコヒーレンスを制御
-        # 各ノードのmemory管理ともいえる
-        pass
+        # self.linksからLinkEPのデコヒーレンスを管理
+        for link in self.links:
+            # link.decoherence(delta_t)てきな操作
+            pass
+        t_tick = Time(time_slot=1)
+        tc = self._simulator.tc
+        tn = tc.__add__(t_tick)
+        next_event = func_to_event(t=tn, fn=self.links_manager, by=self)
+        self._simulator.add_event(next_event)
 
     def gen_single_EP(
         self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
@@ -265,7 +271,11 @@ class ControllerApp(Application):
                     src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
                 )
 
-        # TODO: genrateに応じて次のイベントを追加
+        # gen_rateに応じて次のイベントを挿入
+        delta_t: float = 1 / self.gen_rate
+        tn = tc.__add__(delta_t)
+        next_event = func_to_event(t=tn, fn=self.routine_gen_EP, by=self)
+        self._simulator.add_event(next_event)
 
     def has_free_memory(self, node: QNode) -> bool:
         # ノードのメモリに空きがあるか
