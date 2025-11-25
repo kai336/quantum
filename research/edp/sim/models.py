@@ -1,6 +1,18 @@
 # models.py
 # models for EDP simulation
 
+# もつれ(LinkEP)の時間経過によるデコヒーレンスモデル
+from numpy import exp
+
+T_MEM: float = 10  # コヒーレンス時間
+
+
+def f_link(f: float, dt: float):
+    alpha: float = exp(-dt / T_MEM)
+    f_new: float = 1 / 4 + alpha * (f - 1 / 4)
+    return f_new
+
+
 # スワップ後フィデリティの計算
 def f_swap(f1, f2):
     return 0.25 * (1 + (1 / 3) * (4 * f1 - 1) * (4 * f2 - 1))

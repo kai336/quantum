@@ -7,6 +7,8 @@ from qns.entity.node.node import QNode
 from qns.entity.qchannel import QuantumChannel
 from qns.simulator import Time
 
+from edp.sim.models import f_link
+
 if TYPE_CHECKING:
     from edp.sim.op import Operation
 
@@ -60,6 +62,11 @@ class LinkEP(Entity):
         self.is_free = True
         self.owner_op = None
         pre_owner.ep = None
+
+    def decoherence(self, dt: float):
+        f = self.fidelity
+        f_new = f_link(f=f, dt=dt)
+        self.fidelity = f_new
 
     def __repr__(self) -> str:
         if self.name is not None:

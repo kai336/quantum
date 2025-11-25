@@ -19,12 +19,6 @@ from edp.sim.new_qchannel import NewQC
 from edp.sim.new_request import NewRequest
 from edp.sim.op import Operation, OpStatus, OpType
 
-"""
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-routine系の関数で次のイベント挿入
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-"""
-
 # 初期値
 p_swap = 0.4
 p_pur = 0.9
@@ -116,7 +110,7 @@ class ControllerApp(Application):
         # qc.fidelityを設定
         new_qcs: List[NewQC] = []
         for qc in self.net.qchannels:
-            fidelity_init = 0.99  # change here to set random fidelity
+            fidelity_init: float = 0.99  # change here to set random fidelity
             name = qc.name
             node_list = qc.node_list
             new_qc = NewQC(name=name, node_list=node_list, fidelity_init=fidelity_init)
@@ -151,9 +145,6 @@ class ControllerApp(Application):
             return
 
         self._add_tick_event(fn=self.request_handler_routine)
-
-    def _request_is_done(self):
-        pass
 
     def _advance_request(
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
@@ -255,9 +246,12 @@ class ControllerApp(Application):
 
     def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
+        print(self._simulator.tc, "link routine")
+        print("links: ", [l.fidelity for l in self.links])
+        dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
         for link in self.links:
-            # link.decoherence(delta_t)てきな操作
-            pass
+            link.decoherence(dt=dt)
+            print("new fid:", link.fidelity)
         self._add_tick_event(fn=self.links_manager_routine)
 
     def gen_single_EP(
@@ -298,10 +292,13 @@ class ControllerApp(Application):
         # gen_rateに応じて次のイベントを挿入
         # delta_t: float = 1 / self.gen_rate
         # tn = tc.__add__(delta_t)
+        """
         dt = Time(time_slot=50)
         tn = tc.__add__(dt)
         next_event = func_to_event(t=tn, fn=self.gen_EP_routine, by=self)
         self._simulator.add_event(next_event)
+        """
+        self._add_tick_event(fn=self.gen_EP_routine)
 
     def has_free_memory(self, node: QNode) -> bool:
         # ノードのメモリに空きがあるか
