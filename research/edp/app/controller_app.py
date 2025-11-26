@@ -121,7 +121,8 @@ class ControllerApp(Application):
     def request_handler_routine(self):
         # リクエストを管理
         # req.swap_plan, req.swap_progressから各操作を実行
-        # !!!!!TODO!!!!!: 終了判定
+        # !!!!!TODO!!!!! １つのタイムスロットで
+        print(self._simulator.tc, "req routine start")
         is_all_done = True
         for req in self.requests:
             # 終了判定
@@ -130,8 +131,8 @@ class ControllerApp(Application):
             if root_op.status == OpStatus.DONE:
                 req.is_done = True
                 print("!!!!!!!!req finished!!!!!!!!")
-
-            if req.is_done:
+                continue
+            elif req.is_done:
                 continue
             else:
                 is_all_done = False
@@ -140,7 +141,7 @@ class ControllerApp(Application):
         if is_all_done:
             # 全リクエスト終わったらシミュレータのイベント全消しして終了
             # TODO self.result = [time, ...]
-            log.debug("all requests finished!!")
+            log.debug("!!!!!!!!all requests finished!!!!!!!!!")
             self._simulator.event_pool.event_list.clear()
             return
 
@@ -154,6 +155,7 @@ class ControllerApp(Application):
             if op.status == OpStatus.READY:
                 print(self._simulator.tc, op, "start op")
                 self._run_op(req, op)
+                break  # これがないと１操作分以上にやってしまう
 
     def _run_op(self, req: NewRequest, op: Operation):
         # 操作を実行
@@ -246,7 +248,7 @@ class ControllerApp(Application):
 
     def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
-        print(self._simulator.tc, "link routine")
+        print(self._simulator.tc, "link routine start")
         print("links: ", [l.fidelity for l in self.links])
         dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
         for link in self.links:
@@ -274,6 +276,7 @@ class ControllerApp(Application):
         # 全チャネルでリンクレベルもつれ生成
         # ５本のもつれあればそれ以上いらない
         # メモリに空きがあるかも判定する
+        print(self._simulator.tc, "gen ep routine start")
         tc = self._simulator.tc
         for qc in self.new_qcs:
             nodes = qc.node_list
