@@ -155,11 +155,13 @@ class ControllerApp(Application):
             # 終了判定
             root_op, ops = req.swap_plan
             assert isinstance(root_op, Operation)
-            if root_op.status == OpStatus.DONE:
+            if root_op.status == OpStatus.DONE and root_op.ep.fidelity >= self.f_req:
+                # f_reqも終了条件に加える
                 req.is_done = True
-                print("!!!!!!!!req finished!!!!!!!!")
+                print("!!!!!!!!req finished!!!!!!!! fid: ", root_op.ep.fidelity)
                 continue
             elif req.is_done:
+                print("!!!!!!!!req finished!!!!!!!!")
                 continue
             else:
                 is_all_done = False
@@ -266,10 +268,8 @@ class ControllerApp(Application):
         # fidを更新
         # purify 準備
         assert len(op.pur_eps) == 2
-        ep_target, ep_sacrifice = op.pur_eps
+        ep_sacrifice, ep_target = op.pur_eps
         assert ep_target is not None and ep_sacrifice is not None
-
-        print(self._simulator.ts, "pur_eps: ", ep_target, ep_sacrifice)
 
         fid_target = ep_target.fidelity
         fid_sacrifice = ep_sacrifice.fidelity
