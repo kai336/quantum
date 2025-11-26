@@ -187,8 +187,6 @@ class ControllerApp(Application):
         for link in list(self.links):  # 途中でリンクが削除されても安全に回す
             link.decoherence(dt=dt)
             if link.fidelity < f_cut:  # f_cut以下のもつれを切り捨てる
-                if link.owner_op:  # どこかのopがこのもつれを所有している場合
-                    link.owner_op.request_regen()
                 self.decoherence_EP(link)
         self.links_next.clear()
 
@@ -198,10 +196,11 @@ class ControllerApp(Application):
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
     ):
         # リクエストを１操作分進める
-        for op in list(ops):  # コピー使うことで1操作分以上進まないようにする
-            if op.status == OpStatus.READY:
-                print(self._simulator.tc, op, "start op")
-                self._run_op(req, op)
+        # 現時点でREADYなopだけ実行
+        ready_ops = [op for op in ops if op.status == OpStatus.READY]
+        for op in ready_ops:  # コピー使うことで1操作分以上進まないようにする
+            print(self._simulator.tc, op, "start op")
+            self._run_op(req, op)
 
     def _run_op(self, req: NewRequest, op: Operation):
         # 操作を実行
@@ -235,7 +234,6 @@ class ControllerApp(Application):
         # swap
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
-        print(self._simulator.tc, "ep_left: ", ep_left, "ep_right: ", ep_right)
         assert ep_left is not None and ep_right is not None
         assert ep_left in self.links and ep_right in self.links
 
@@ -335,8 +333,7 @@ class ControllerApp(Application):
         if owner:
             owner.request_regen()
             ep.free_owner(owner)
-        else:
-            self.delete_EP(ep)
+        self.delete_EP(ep)
 
     def consume_EP(self, ep: LinkEP):
         # opの実行によってLinkEPが消費されるとき
