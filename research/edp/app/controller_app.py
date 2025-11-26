@@ -27,6 +27,7 @@ memory_capacity = 5
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
 f_req = 0.97  # 最小要求忠実度
+f_cut = 0.70  # 切り捨て閾値
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
 
@@ -42,12 +43,14 @@ class ControllerApp(Application):
         p_pur: float = p_pur,
         gen_rate: int = gen_rate,
         f_req=f_req,
+        f_cut=f_cut,
     ):
         super().__init__()
         self.p_swap: float = p_swap
         self.p_pur: float = p_pur
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
+        self.f_cut: float = f_cut
         self.net: QuantumNetwork
         self.node: QNode
         self.requests: List[NewRequest] = []
@@ -77,12 +80,13 @@ class ControllerApp(Application):
 
     def init_event(self, t: Time):
         # 初期イベントを挿入
+        # gen_ep -> req_routine -> link_manager_routine -> gen_ep -> ...
         gen_ep_routine = func_to_event(t=t, fn=self.gen_EP_routine, by=self)
         self._simulator.add_event(gen_ep_routine)
-        req_routine = func_to_event(t=t, fn=self.request_handler_routine, by=self)
-        self._simulator.add_event(req_routine)
-        link_routine = func_to_event(t=t, fn=self.links_manager_routine, by=self)
-        self._simulator.add_event(link_routine)
+        # req_routine = func_to_event(t=t, fn=self.request_handler_routine, by=self)
+        # self._simulator.add_event(req_routine)
+        # link_routine = func_to_event(t=t, fn=self.links_manager_routine, by=self)
+        # self._simulator.add_event(link_routine)
 
     def init_reqs(self):
         # self.requestsでリクエストを管理
@@ -119,6 +123,28 @@ class ControllerApp(Application):
 
         self.new_qcs = new_qcs
 
+    def gen_EP_routine(self):
+        # 全チャネルでリンクレベルもつれ生成
+        # ５本のもつれあればそれ以上いらない
+        # メモリに空きがあるかも判定する
+        print(self._simulator.tc, "gen ep routine start")
+        tc = self._simulator.tc
+        for qc in self.new_qcs:
+            nodes = qc.node_list
+            # 同じチャネルのリンクレベルEPを数える
+            num_link = 0
+            for link in self.links:
+                if link.nodes is not None and set(link.nodes) == set(nodes):
+                    num_link += 1
+            # 一定数以下なら生成
+            if num_link < l0_link_max:
+                _ = self.gen_single_EP(
+                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
+                )
+                print(self._simulator.tc, "gen link")
+
+        self._add_tick_event(fn=self.request_handler_routine)
+
     def request_handler_routine(self):
         # リクエストを管理
         # req.swap_plan, req.swap_progressから各操作を実行
@@ -146,26 +172,45 @@ class ControllerApp(Application):
             self._simulator.event_pool.event_list.clear()
             return
 
-        self._add_tick_event(fn=self.request_handler_routine)
+        self._add_tick_event(fn=self.links_manager_routine)
+
+    def links_manager_routine(self):
+        # self.linksからLinkEPのデコヒーレンスを管理
+        # self.links_next　を次のタイムスロットでself.linksに挿入
+        print(self._simulator.tc, "link routine start")
+
+        if len(self.links_next) != 0:
+            self.links += self.links_next
+
+        print("links: ", [link.fidelity for link in self.links])
+        dt = Time(time_slot=3).sec  # 3 timeslotをsec単位に変換
+        for link in list(self.links):  # 途中でリンクが削除されても安全に回す
+            link.decoherence(dt=dt)
+            if link.fidelity < f_cut:  # f_cut以下のもつれを切り捨てる
+                if link.owner_op:  # どこかのopがこのもつれを所有している場合
+                    link.owner_op.request_regen()
+                self.decoherence_EP(link)
+        self.links_next.clear()
+
+        self._add_tick_event(fn=self.gen_EP_routine)
 
     def _advance_request(
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
     ):
         # リクエストを１操作分進める
-        for op in ops:
+        for op in list(ops):  # コピー使うことで1操作分以上進まないようにする
             if op.status == OpStatus.READY:
                 print(self._simulator.tc, op, "start op")
                 self._run_op(req, op)
-                break  # これがないと１操作分以上にやってしまう
 
     def _run_op(self, req: NewRequest, op: Operation):
         # 操作を実行
         op.start()
-        if op.op == OpType.GEN_LINK:
+        if op.type == OpType.GEN_LINK:
             self._handle_gen_link(op)
-        elif op.op == OpType.SWAP:
+        elif op.type == OpType.SWAP:
             self._handle_swap(op)
-        elif op.op == OpType.PURIFY:
+        elif op.type == OpType.PURIFY:
             self._handle_purify(op)
 
     def _handle_gen_link(self, op: Operation):
@@ -190,6 +235,7 @@ class ControllerApp(Application):
         # swap
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
+        print(self._simulator.tc, "ep_left: ", ep_left, "ep_right: ", ep_right)
         assert ep_left is not None and ep_right is not None
         assert ep_left in self.links and ep_right in self.links
 
@@ -200,8 +246,8 @@ class ControllerApp(Application):
 
         # 先にもとのもつれを廃棄しとく
         # 失敗・成功にかかわらずもとのもつれは使えない　& 新たにメモリ消費することなくswapできるので
-        self.delete_EP(ep_left)
-        self.delete_EP(ep_right)
+        self.consume_EP(ep_left)
+        self.consume_EP(ep_right)
 
         # swap
         if random.random() < self.p_swap:
@@ -225,10 +271,12 @@ class ControllerApp(Application):
         ep_target, ep_sacrifice = op.pur_eps
         assert ep_target is not None and ep_sacrifice is not None
 
+        print(self._simulator.ts, "pur_eps: ", ep_target, ep_sacrifice)
+
         fid_target = ep_target.fidelity
         fid_sacrifice = ep_sacrifice.fidelity
 
-        self.delete_EP(ep_sacrifice)  # どっちにしろ犠牲になるのでfidも取ったし消しとく
+        self.consume_EP(ep_sacrifice)  # どっちにしろ犠牲になるのでfidも取ったし消しとく
         new_fid = f_pur(ft=fid_target, fs=fid_sacrifice)  # purify成功後のfidelity
 
         op.pur_eps.clear()
@@ -243,63 +291,16 @@ class ControllerApp(Application):
             op.done()
         else:  # 失敗したらtargetEPも消す
             print(self._simulator.tc, "purify failed")
-            self.delete_EP(ep_target)
+            self.consume_EP(ep_target)
             op.request_regen()
 
         assert len(op.pur_eps) == 0
 
-    def links_manager_routine(self):
-        # self.linksからLinkEPのデコヒーレンスを管理
-        # self.links_next　を次のタイムスロットでself.linksに挿入
-        print(self._simulator.tc, "link routine start")
-
-        if len(self.links_next) != 0:
-            self.links += self.links_next
-
-        print("links: ", [link.fidelity for link in self.links])
-        dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
-        for link in self.links:
-            link.decoherence(dt=dt)
-            print("new fid:", link.fidelity)
-        self._add_tick_event(fn=self.links_manager_routine)
-        self.links_next.clear()
-
-    def gen_EP_routine(self):
-        # 全チャネルでリンクレベルもつれ生成
-        # ５本のもつれあればそれ以上いらない
-        # メモリに空きがあるかも判定する
-        print(self._simulator.tc, "gen ep routine start")
-        tc = self._simulator.tc
-        for qc in self.new_qcs:
-            nodes = qc.node_list
-            # 同じチャネルのリンクレベルEPを数える
-            num_link = 0
-            for link in self.links:
-                if link.nodes is not None and set(link.nodes) == set(nodes):
-                    num_link += 1
-            # 一定数以下なら生成
-            if num_link < l0_link_max:
-                _ = self.gen_single_EP(
-                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
-                )
-                print(self._simulator.tc, "gen link")
-
-        # gen_rateに応じて次のイベントを挿入
-        # delta_t: float = 1 / self.gen_rate
-        # tn = tc.__add__(delta_t)
-        """
-        dt = Time(time_slot=50)
-        tn = tc.__add__(dt)
-        next_event = func_to_event(t=tn, fn=self.gen_EP_routine, by=self)
-        self._simulator.add_event(next_event)
-        """
-        self._add_tick_event(fn=self.gen_EP_routine)
-
     def gen_single_EP(
         self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
     ) -> LinkEP | None:
-        # 1つのLinkEPをメモリに空きがあればに生成する
-        # self.linksには次のタイムスロットで挿入する
+        # 1つのLinkEPをメモリに空きがあれば生成する
+        # 新規EPは即座に self.links へ挿入し、当該タイムスロット内で利用可能にする
         if not (self.has_free_memory(src) and self.has_free_memory(dest)):
             print(self._simulator.tc, "no memory")
             return None
@@ -309,7 +310,7 @@ class ControllerApp(Application):
             link = LinkEP(
                 fidelity=fidelity, nodes=(src, dest), created_at=t, is_free=is_free
             )
-            self.links_next.append(link)
+            self.links.append(link)
             return link
 
     def has_free_memory(self, node: QNode) -> bool:
@@ -328,8 +329,24 @@ class ControllerApp(Application):
         app: NodeApp = node.apps[0]
         app.free_single_memory()
 
+    def decoherence_EP(self, ep: LinkEP):
+        # デコヒーレンスによってLinkEPが切り捨てられるとき
+        owner = ep.owner_op
+        if owner:
+            owner.request_regen()
+            ep.free_owner(owner)
+        else:
+            self.delete_EP(ep)
+
+    def consume_EP(self, ep: LinkEP):
+        # opの実行によってLinkEPが消費されるとき
+        # opの所有epから消す
+        assert ep.owner_op is not None
+        ep.free_owner(pre_owner=ep.owner_op)
+        self.delete_EP(ep=ep)
+
     def delete_EP(self, ep: LinkEP):
-        # メモリ開放とself.linksから削除
+        # LinkEPをノードのメモリ、self.linksから削除、インスタンスも削除
         for node in ep.nodes:
             self.free_single_memory(node)
         self.links.remove(ep)

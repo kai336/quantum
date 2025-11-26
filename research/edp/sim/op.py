@@ -26,7 +26,7 @@ class Operation:
     def __init__(
         self,
         name: str,
-        op: OpType,
+        type: OpType,
         n1: QNode,
         n2: QNode,
         via: Optional[QNode] = None,
@@ -37,7 +37,7 @@ class Operation:
         pur_eps: List[LinkEP] = [],
     ):
         self.name = name
-        self.op = op
+        self.type = type
         self.status = status or OpStatus.WAITING
         self.n1 = n1
         self.n2 = n2
@@ -61,7 +61,7 @@ class Operation:
         # 自分が準備完了かどうか
         # purifyの場合
         # 子ノードが完了したときにこの関数が呼ばれる
-        if self.op == OpType.PURIFY:
+        if self.type == OpType.PURIFY:
             self._judge_ready_purify()
         # purify以外
         elif self.can_run() and self.status in (OpStatus.WAITING, OpStatus.RETRY):
@@ -138,7 +138,7 @@ def build_ops_from_edp_result(
             n1, n2 = node_dict["link"]
             op = Operation(
                 name=f"GEN_LINK({n1.name}-{n2.name})",
-                op=OpType.GEN_LINK,
+                type=OpType.GEN_LINK,
                 status=OpStatus.READY,  # ここでGENLINKをあらかじめ実行できるようにしとく
                 n1=n1,
                 n2=n2,
@@ -154,7 +154,7 @@ def build_ops_from_edp_result(
 
             op = Operation(
                 name=f"SWAP({x.name}-{via.name}-{y.name})",
-                op=OpType.SWAP,
+                type=OpType.SWAP,
                 n1=x,
                 n2=y,
                 via=via,
@@ -172,7 +172,7 @@ def build_ops_from_edp_result(
 
             op = Operation(
                 name=f"PURIFY({x.name}-{y.name})",
-                op=OpType.PURIFY,
+                type=OpType.PURIFY,
                 n1=x,
                 n2=y,
                 parent=parent,

@@ -43,10 +43,8 @@ class LinkEP(Entity):
         # controller.linksで追跡したまま(deepcopyすることなく)所有者(op)を変えたい
         # owner変えて、opも変える
         assert self.owner_op == pre_owner
-
-        self.owner_op = new_owner
-        pre_owner.ep = None
-        new_owner.ep = self
+        self.free_owner(pre_owner=pre_owner)
+        self.set_owner(new_owner=new_owner)
 
     def set_owner(self, new_owner: "Operation"):
         # owner設定して、op側も変える
@@ -57,11 +55,17 @@ class LinkEP(Entity):
         new_owner.ep = self
 
     def free_owner(self, pre_owner: "Operation"):
-        assert self.owner_op == pre_owner
+        # 遅延インポートで循環参照を回避
+        from edp.sim.op import OpType
 
+        assert self.owner_op == pre_owner
         self.is_free = True
         self.owner_op = None
-        pre_owner.ep = None
+        # ownerがpurifyで、pur_epsにselfが入ってるとき
+        if pre_owner.type == OpType.PURIFY and self in pre_owner.pur_eps:
+            pre_owner.pur_eps.remove(self)
+        if pre_owner.ep is self:
+            pre_owner.ep = None
 
     def decoherence(self, dt: float):
         f = self.fidelity
