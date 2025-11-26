@@ -52,6 +52,7 @@ class ControllerApp(Application):
         self.node: QNode
         self.requests: List[NewRequest] = []
         self.links: List[LinkEP] = []  # シンプルにlinkEPぶち込んでEP管理
+        self.links_next: List[LinkEP] = []  # 次のタイムスロットで使えるようになる新EP
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
 
@@ -190,6 +191,7 @@ class ControllerApp(Application):
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
         assert ep_left is not None and ep_right is not None
+        assert ep_left in self.links and ep_right in self.links
 
         # 一応中間ノードの整合性チェック
         via = op.via
@@ -248,29 +250,19 @@ class ControllerApp(Application):
 
     def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
+        # self.links_next　を次のタイムスロットでself.linksに挿入
         print(self._simulator.tc, "link routine start")
-        print("links: ", [l.fidelity for l in self.links])
+
+        if len(self.links_next) != 0:
+            self.links += self.links_next
+
+        print("links: ", [link.fidelity for link in self.links])
         dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
         for link in self.links:
             link.decoherence(dt=dt)
             print("new fid:", link.fidelity)
         self._add_tick_event(fn=self.links_manager_routine)
-
-    def gen_single_EP(
-        self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
-    ) -> LinkEP | None:
-        # 1つのLinkEPをメモリに空きがあればに生成する
-        if not (self.has_free_memory(src) and self.has_free_memory(dest)):
-            print(self._simulator.tc, "no memory")
-            return None
-        else:
-            self.use_single_memory(src)
-            self.use_single_memory(dest)
-            link = LinkEP(
-                fidelity=fidelity, nodes=(src, dest), created_at=t, is_free=is_free
-            )
-            self.links.append(link)
-            return link
+        self.links_next.clear()
 
     def gen_EP_routine(self):
         # 全チャネルでリンクレベルもつれ生成
@@ -302,6 +294,23 @@ class ControllerApp(Application):
         self._simulator.add_event(next_event)
         """
         self._add_tick_event(fn=self.gen_EP_routine)
+
+    def gen_single_EP(
+        self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
+    ) -> LinkEP | None:
+        # 1つのLinkEPをメモリに空きがあればに生成する
+        # self.linksには次のタイムスロットで挿入する
+        if not (self.has_free_memory(src) and self.has_free_memory(dest)):
+            print(self._simulator.tc, "no memory")
+            return None
+        else:
+            self.use_single_memory(src)
+            self.use_single_memory(dest)
+            link = LinkEP(
+                fidelity=fidelity, nodes=(src, dest), created_at=t, is_free=is_free
+            )
+            self.links_next.append(link)
+            return link
 
     def has_free_memory(self, node: QNode) -> bool:
         # ノードのメモリに空きがあるか
