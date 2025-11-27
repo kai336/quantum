@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400">
+<style>text{font-family:"DejaVu Sans",sans-serif;font-size:12px;}line{stroke:#333;stroke-width:1} polyline{fill:none;stroke:#1b73e8;stroke-width:2} circle{fill:#1b73e8}</style>
+<rect x="1" y="1" width="638" height="398" fill="white" stroke="#ccc" stroke-width="1"/>
+<line x1="60" y1="340" x2="580" y2="340" />
+<line x1="60" y1="340" x2="60" y2="60" />
+<line x1="60" y1="340.0" x2="580" y2="340.0" stroke="#ddd" />
+<text x="50" y="344.0" text-anchor="end">-0.001</text>
+<line x1="60" y1="200.0" x2="580" y2="200.0" stroke="#ddd" />
+<text x="50" y="204.0" text-anchor="end">0</text>
+<line x1="60" y1="60.0" x2="580" y2="60.0" stroke="#ddd" />
+<text x="50" y="64.0" text-anchor="end">0.001</text>
+<line x1="60.0" y1="340" x2="60.0" y2="336" stroke="#333" />
+<text x="60.0" y="358" text-anchor="middle">0.2</text>
+<line x1="189.99999999999997" y1="340" x2="189.99999999999997" y2="336" stroke="#333" />
+<text x="189.99999999999997" y="358" text-anchor="middle">0.3</text>
+<line x1="320.00000000000006" y1="340" x2="320.00000000000006" y2="336" stroke="#333" />
+<text x="320.00000000000006" y="358" text-anchor="middle">0.4</text>
+<line x1="450.0" y1="340" x2="450.0" y2="336" stroke="#333" />
+<text x="450.0" y="358" text-anchor="middle">0.5</text>
+<line x1="580.0" y1="340" x2="580.0" y2="336" stroke="#333" />
+<text x="580.0" y="358" text-anchor="middle">0.6</text>
+<polyline points="60.0,200.0 189.99999999999997,200.0 320.00000000000006,200.0 450.0,200.0 580.0,200.0"/>
+<circle cx="60.0" cy="200.0" r="3"/>
+<circle cx="189.99999999999997" cy="200.0" r="3"/>
+<circle cx="320.00000000000006" cy="200.0" r="3"/>
+<circle cx="450.0" cy="200.0" r="3"/>
+<circle cx="580.0" cy="200.0" r="3"/>
+<text x="320.0" y="380" text-anchor="middle">p_swap</text>
+<text x="30.0" y="200.0" text-anchor="middle" transform="rotate(-90 30.0,200.0)">スループット（完了要求/タイムスロット）</text>
+<text x="320.0" y="30" text-anchor="middle" font-size="14">init_fidelity=0.8でのスループット</text>
+</svg>

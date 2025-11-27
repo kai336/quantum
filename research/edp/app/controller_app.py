@@ -25,7 +25,7 @@ target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
-f_req = 0.97  # 最小要求忠実度
+f_req = 0.85  # 最小要求忠実度
 f_cut = 0.70  # 切り捨て閾値
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
@@ -43,6 +43,7 @@ class ControllerApp(Application):
         gen_rate: int = gen_rate,
         f_req=f_req,
         f_cut=f_cut,
+        init_fidelity: float = init_fidelity,
     ):
         super().__init__()
         self.p_swap: float = p_swap
@@ -50,6 +51,7 @@ class ControllerApp(Application):
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
         self.f_cut: float = f_cut
+        self.init_fidelity: float = init_fidelity
         self.net: QuantumNetwork
         self.node: QNode
         self.requests: List[NewRequest] = []
@@ -57,6 +59,8 @@ class ControllerApp(Application):
         self.links_next: List[EP] = []  # 次のタイムスロットで使えるようになる新EP
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
+        self.completed_requests: List[dict] = []
+        self.completed_requests: List[dict] = []
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -114,7 +118,7 @@ class ControllerApp(Application):
         # qc.fidelityを設定
         new_qcs: List[NewQC] = []
         for qc in self.net.qchannels:
-            fidelity_init: float = 0.99  # change here to set random fidelity
+            fidelity_init: float = self.init_fidelity
             name = qc.name
             node_list = qc.node_list
             new_qc = NewQC(
@@ -163,6 +167,15 @@ class ControllerApp(Application):
             elif root_op.status == OpStatus.DONE and root_op.ep.fidelity >= self.f_req:
                 # f_reqも終了条件に加える
                 req.is_done = True
+                finish_time = self._simulator.tc.time_slot
+                self.completed_requests.append(
+                    {
+                        "index": idx,
+                        "name": req.name,
+                        "finish_time": finish_time,
+                        "fidelity": root_op.ep.fidelity,
+                    }
+                )
                 print(
                     "!!!!!!!!req", idx, " finished!!!!!!!! fid: ", root_op.ep.fidelity
                 )
@@ -240,8 +253,15 @@ class ControllerApp(Application):
         # swap
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
-        assert ep_left is not None and ep_right is not None
-        assert ep_left in self.links and ep_right in self.links
+        if (
+            ep_left is None
+            or ep_right is None
+            or ep_left not in self.links
+            or ep_right not in self.links
+        ):
+            # 必要なEPがデコヒーレンス等で欠落したら再生成を要求する
+            op.request_regen()
+            return
 
         # 一応中間ノードの整合性チェック
         via = op.via
