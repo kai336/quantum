@@ -46,11 +46,3 @@ def p_pur(ft, fs):
         + (1 - ft) / 3 * fs
         + 5 * ((1 - ft) / 3) * ((1 - fs) / 3)
     )
-
-
-# iラウンド・エントanglement pumping（ターゲットtに同fidのsをk回）
-def pump_fidelity(fs, k):
-    f = fs
-    for _ in range(k):
-        f = f_pur(f, fs)
-    return f

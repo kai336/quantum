@@ -4,16 +4,16 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from qns.entity import Entity
 from qns.entity.node.node import QNode
-from qns.entity.qchannel import QuantumChannel
 from qns.simulator import Time
 
 from edp.sim.models import f_link
+from edp.sim.new_qchannel import NewQC
 
 if TYPE_CHECKING:
     from edp.sim.op import Operation
 
 
-class LinkEP(Entity):
+class EP(Entity):
     """
     １つの link = bell pair を記述するクラス リンクレベルのリンクとは違う意味なのでややこしい
     name(uuid), fidelity, nodes, qc, created_at, is_used, swap_level
@@ -24,7 +24,7 @@ class LinkEP(Entity):
         nodes: Tuple[QNode, QNode],
         name: Optional[str] = None,
         fidelity: float = 0,
-        qc: Optional[QuantumChannel] = None,
+        qc: Optional[NewQC] = None,
         created_at: Optional[Time] = None,
         is_free: bool = True,
         owner_op: Optional["Operation"] = None,

@@ -12,16 +12,15 @@ from qns.simulator.simulator import Simulator
 from qns.simulator.ts import Time
 
 from edp.alg.edp import batch_EDP
-from edp.app.node_app import NodeApp
-from edp.sim.link import LinkEP
-from edp.sim.models import f_pur, f_swap
+from edp.sim.ep import EP
+from edp.sim.models import f_pur, f_swap, p_pur
 from edp.sim.new_qchannel import NewQC
 from edp.sim.new_request import NewRequest
 from edp.sim.op import Operation, OpStatus, OpType
 
 # 初期値
 p_swap = 0.4
-p_pur = 0.9
+# p_pur = 0.9
 target_fidelity = 0.8
 memory_capacity = 5
 memory_time = 0.1
@@ -40,22 +39,22 @@ class ControllerApp(Application):
     def __init__(
         self,
         p_swap: float = p_swap,
-        p_pur: float = p_pur,
+        # p_pur: float = p_pur,
         gen_rate: int = gen_rate,
         f_req=f_req,
         f_cut=f_cut,
     ):
         super().__init__()
         self.p_swap: float = p_swap
-        self.p_pur: float = p_pur
+        # self.p_pur: float = p_pur
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
         self.f_cut: float = f_cut
         self.net: QuantumNetwork
         self.node: QNode
         self.requests: List[NewRequest] = []
-        self.links: List[LinkEP] = []  # シンプルにlinkEPぶち込んでEP管理
-        self.links_next: List[LinkEP] = []  # 次のタイムスロットで使えるようになる新EP
+        self.links: List[EP] = []  # シンプルにlinkEPぶち込んでEP管理
+        self.links_next: List[EP] = []  # 次のタイムスロットで使えるようになる新EP
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
 
@@ -222,7 +221,7 @@ class ControllerApp(Application):
     def _handle_gen_link(self, op: Operation):
         # 生成済みEPを探す
         pair = set((op.n1, op.n2))
-        ep_cand: Optional[LinkEP] = None
+        ep_cand: Optional[EP] = None
         for link in self.links:
             if set(link.nodes) == pair and link.is_free:
                 ep_cand = link
@@ -284,7 +283,7 @@ class ControllerApp(Application):
 
         op.pur_eps.clear()
         # purify　実行
-        if random.random() < self.p_pur:
+        if random.random() < p_pur(ft=fid_target, fs=fid_sacrifice):
             print(self._simulator.tc, "purify success")
             ep_target.fidelity = new_fid  # fidelity更新
             # すでにownerは自分になっているので念のため確認だけする
@@ -307,7 +306,7 @@ class ControllerApp(Application):
         t: Time,
         qc: NewQC | None = None,
         is_free: bool = True,
-    ) -> LinkEP | None:
+    ) -> EP | None:
         # リンク(NewQC)単位のメモリ制約で管理する
         if qc is not None and not qc.has_free_memory:
             return None
@@ -315,7 +314,7 @@ class ControllerApp(Application):
         if qc is not None:
             qc.use_single_memory()
 
-        link = LinkEP(
+        link = EP(
             fidelity=fidelity,
             nodes=(src, dest),
             qc=qc,
@@ -325,7 +324,7 @@ class ControllerApp(Application):
         self.links.append(link)
         return link
 
-    def decoherence_EP(self, ep: LinkEP):
+    def decoherence_EP(self, ep: EP):
         # デコヒーレンスによってLinkEPが切り捨てられるとき
         owner = ep.owner_op
         if owner:
@@ -333,17 +332,17 @@ class ControllerApp(Application):
             ep.free_owner(owner)
         self.delete_EP(ep)
 
-    def consume_EP(self, ep: LinkEP):
+    def consume_EP(self, ep: EP):
         # opの実行によってLinkEPが消費されるとき
         # opの所有epから消す
         assert ep.owner_op is not None
         ep.free_owner(pre_owner=ep.owner_op)
         self.delete_EP(ep=ep)
 
-    def delete_EP(self, ep: LinkEP):
+    def delete_EP(self, ep: EP):
         # LinkEPをself.linksから削除、インスタンスも削除
         if ep.qc is not None:
-            ep.qc.free_single_memory()
+            ep.qc.free_single_memory
         self.links.remove(ep)
         del ep
 
