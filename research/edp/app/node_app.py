@@ -1,9 +1,4 @@
 # node_app.py
-import random
-from typing import Dict, List, Optional
-
-import qns.utils.log as log
-from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
@@ -12,12 +7,10 @@ from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
 from qns.simulator.ts import Time
 
-from edp.sim.link import LinkEP
-
 # 初期値
 p_swap = 0.4
 target_fidelity = 0.8
-memory_capacity = 10
+link_max = 5  # リンクレベルEPの最大バッファ
 memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
 n_slot_per_sec = 100  # 1秒当たりのタイムスロット数
@@ -32,13 +25,15 @@ class NodeApp(Application):
         self,
         p_swap: float = p_swap,
         gen_rate: int = gen_rate,
-        memory_capacity: int = memory_capacity,
+        memory_capacity: int | None = None,
+        link_max: int = link_max,
     ):
         super().__init__()
         self.p_swap: float = p_swap
         self.gen_rate: int = gen_rate
-        self.memory_capacity: int = memory_capacity
+        self.memory_capacity: int | None = memory_capacity
         self.memory_usage: int = 0
+        self.link_max: int = link_max
         self.node = None
         self._simulator = None
         self.memories = None  # いらん
@@ -61,6 +56,9 @@ class NodeApp(Application):
             for node in qc.node_list:
                 if node is not self.node:
                     self.adj.append(node)
+
+        # 次数×link_maxでメモリ容量を決定
+        self.memory_capacity = len(self.adj) * self.link_max
 
         ts = simulator.ts
         self.init_event(ts)
@@ -87,9 +85,11 @@ class NodeApp(Application):
 
     @property
     def has_free_memory(self) -> bool:
+        assert self.memory_capacity is not None
         return self.memory_capacity > self.memory_usage
 
     def use_single_memory(self):
+        assert self.memory_capacity is not None
         assert self.memory_capacity > self.memory_usage
         self.memory_usage += 1
 

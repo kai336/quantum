@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 
 from qns.entity.node import QNode
 
-from edp.sim.link import LinkEP
+from edp.sim.ep import EP
 
 
 class OpType(Enum):
@@ -33,8 +33,8 @@ class Operation:
         status: Optional[OpStatus] = None,
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
-        ep: Optional[LinkEP] = None,
-        pur_eps: List[LinkEP] = [],
+        ep: Optional[EP] = None,
+        pur_eps: List[EP] = [],
     ):
         self.name = name
         self.type = type
@@ -76,7 +76,7 @@ class Operation:
         ep_child = op_child.ep
         assert ep_child is not None
         ep_child.change_owner(pre_owner=op_child, new_owner=self)
-        assert isinstance(ep_child, LinkEP)
+        assert isinstance(ep_child, EP)
         self.pur_eps.append(ep_child)
 
         if num_eps == 0:

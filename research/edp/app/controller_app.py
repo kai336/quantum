@@ -1,7 +1,7 @@
 # controller_app.py
 # main duty: controll the entire network
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 import qns.utils.log as log
 from qns.entity.node.app import Application

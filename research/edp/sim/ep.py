@@ -29,6 +29,7 @@ class EP(Entity):
         is_free: bool = True,
         owner_op: Optional["Operation"] = None,
         swap_level: int = 0,  # 何回のswapでできているか ここ０ならリンクレベルEP 未実装
+        use_node_memory: bool = True,  # ノードメモリを消費するかどうか
     ):
         super().__init__(name=name or str(uuid.uuid4()))
         self.fidelity = fidelity
@@ -38,6 +39,7 @@ class EP(Entity):
         self.is_free = is_free
         self.owner_op = owner_op
         self.swap_level = swap_level
+        self.use_node_memory = use_node_memory
 
     def change_owner(self, pre_owner: "Operation", new_owner: "Operation"):
         # controller.linksで追跡したまま(deepcopyすることなく)所有者(op)を変えたい
