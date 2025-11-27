@@ -22,10 +22,12 @@ memory_time = 0.1
 gen_rate = 50  # １秒あたりのもつれ生成回数
 f_req = 0.8  # 最小要求忠実度
 init_fidelity = 0.99
-l0_link_max = 5  # リンクレベルEPのバッファ数
+l0_link_max = 5  # リンクレベルEPのバッファ数 メモリ管理に使う
+# waxman topoのパラメタ
 waxman_size = 1000  # Waxmanの領域サイズ
 waxman_alpha = 0.2
-waxman_beta = 0.2
+waxman_beta = 0.6
+# the number of requests
 num_req = 5
 
 s = Simulator(0, 1000000, 1)
@@ -33,7 +35,7 @@ log.logger.setLevel(logging.DEBUG)
 set_seed(42)
 # generate network with end nodes
 topo = WaxmanTopology(
-    nodes_number=10,
+    nodes_number=50,
     size=waxman_size,
     alpha=waxman_alpha,
     beta=waxman_beta,

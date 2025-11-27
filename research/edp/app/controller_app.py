@@ -118,50 +118,55 @@ class ControllerApp(Application):
             fidelity_init: float = 0.99  # change here to set random fidelity
             name = qc.name
             node_list = qc.node_list
-            new_qc = NewQC(name=name, node_list=node_list, fidelity_init=fidelity_init)
+            new_qc = NewQC(
+                name=name,
+                node_list=node_list,
+                fidelity_init=fidelity_init,
+                memory_capacity=l0_link_max,
+            )
             new_qcs.append(new_qc)
 
         self.new_qcs = new_qcs
 
     def gen_EP_routine(self):
         # 全チャネルでリンクレベルもつれ生成
-        # ５本のもつれあればそれ以上いらない
-        # メモリに空きがあるかも判定する
         print(self._simulator.tc, "gen ep routine start")
         tc = self._simulator.tc
         for qc in self.new_qcs:
+            if not qc.has_free_memory:
+                continue
+
             nodes = qc.node_list
-            # 同じチャネルのリンクレベルEPを数える
-            num_link = 0
-            for link in self.links:
-                if link.nodes is not None and set(link.nodes) == set(nodes):
-                    num_link += 1
-            # 一定数以下なら生成
-            if num_link < l0_link_max:
-                _ = self.gen_single_EP(
-                    src=nodes[0], dest=nodes[1], fidelity=qc.fidelity_init, t=tc
-                )
-                print(self._simulator.tc, "gen link")
+            _ = self.gen_single_EP(
+                src=nodes[0],
+                dest=nodes[1],
+                fidelity=qc.fidelity_init,
+                t=tc,
+                qc=qc,
+            )
+            # print(self._simulator.tc, "gen link")
 
         self._add_tick_event(fn=self.request_handler_routine)
 
     def request_handler_routine(self):
         # リクエストを管理
-        # req.swap_plan, req.swap_progressから各操作を実行
-        # !!!!!TODO!!!!! １つのタイムスロットで
+        # req.swap_plan, req.swap_progressから各操作を実行\
         print(self._simulator.tc, "req routine start")
         is_all_done = True
         for req in self.requests:
             # 終了判定
             root_op, ops = req.swap_plan
             assert isinstance(root_op, Operation)
-            if root_op.status == OpStatus.DONE and root_op.ep.fidelity >= self.f_req:
+            idx = self.requests.index(req)
+            if req.is_done:
+                # print("!!!!!!!!req", idx, " finished!!!!!!!!")
+                continue
+            elif root_op.status == OpStatus.DONE and root_op.ep.fidelity >= self.f_req:
                 # f_reqも終了条件に加える
                 req.is_done = True
-                print("!!!!!!!!req finished!!!!!!!! fid: ", root_op.ep.fidelity)
-                continue
-            elif req.is_done:
-                print("!!!!!!!!req finished!!!!!!!!")
+                print(
+                    "!!!!!!!!req", idx, " finished!!!!!!!! fid: ", root_op.ep.fidelity
+                )
                 continue
             else:
                 is_all_done = False
@@ -184,7 +189,7 @@ class ControllerApp(Application):
         if len(self.links_next) != 0:
             self.links += self.links_next
 
-        print("links: ", [link.fidelity for link in self.links])
+        # print("links: ", [link.fidelity for link in self.links])
         dt = Time(time_slot=3).sec  # 3 timeslotをsec単位に変換
         for link in list(self.links):  # 途中でリンクが削除されても安全に回す
             link.decoherence(dt=dt)
@@ -295,37 +300,30 @@ class ControllerApp(Application):
         assert len(op.pur_eps) == 0
 
     def gen_single_EP(
-        self, src: QNode, dest: QNode, fidelity: float, t: Time, is_free: bool = True
+        self,
+        src: QNode,
+        dest: QNode,
+        fidelity: float,
+        t: Time,
+        qc: NewQC | None = None,
+        is_free: bool = True,
     ) -> LinkEP | None:
-        # 1つのLinkEPをメモリに空きがあれば生成する
-        # 新規EPは即座に self.links へ挿入し、当該タイムスロット内で利用可能にする
-        if not (self.has_free_memory(src) and self.has_free_memory(dest)):
-            print(self._simulator.tc, "no memory")
+        # リンク(NewQC)単位のメモリ制約で管理する
+        if qc is not None and not qc.has_free_memory:
             return None
-        else:
-            self.use_single_memory(src)
-            self.use_single_memory(dest)
-            link = LinkEP(
-                fidelity=fidelity, nodes=(src, dest), created_at=t, is_free=is_free
-            )
-            self.links.append(link)
-            return link
 
-    def has_free_memory(self, node: QNode) -> bool:
-        # ノードのメモリに空きがあるか
-        assert isinstance(node.apps[0], NodeApp)
-        app: NodeApp = node.apps[0]
-        return app.has_free_memory
+        if qc is not None:
+            qc.use_single_memory()
 
-    def use_single_memory(self, node: QNode):
-        assert isinstance(node.apps[0], NodeApp)
-        app: NodeApp = node.apps[0]
-        app.use_single_memory()
-
-    def free_single_memory(self, node: QNode):
-        assert isinstance(node.apps[0], NodeApp)
-        app: NodeApp = node.apps[0]
-        app.free_single_memory()
+        link = LinkEP(
+            fidelity=fidelity,
+            nodes=(src, dest),
+            qc=qc,
+            created_at=t,
+            is_free=is_free,
+        )
+        self.links.append(link)
+        return link
 
     def decoherence_EP(self, ep: LinkEP):
         # デコヒーレンスによってLinkEPが切り捨てられるとき
@@ -343,9 +341,9 @@ class ControllerApp(Application):
         self.delete_EP(ep=ep)
 
     def delete_EP(self, ep: LinkEP):
-        # LinkEPをノードのメモリ、self.linksから削除、インスタンスも削除
-        for node in ep.nodes:
-            self.free_single_memory(node)
+        # LinkEPをself.linksから削除、インスタンスも削除
+        if ep.qc is not None:
+            ep.qc.free_single_memory()
         self.links.remove(ep)
         del ep
 
