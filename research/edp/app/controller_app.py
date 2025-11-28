@@ -362,7 +362,7 @@ class ControllerApp(Application):
     def delete_EP(self, ep: EP):
         # LinkEPをself.linksから削除、インスタンスも削除
         if ep.qc is not None:
-            ep.qc.free_single_memory
+            ep.qc.free_single_memory()
         self.links.remove(ep)
         del ep
 
