@@ -31,7 +31,9 @@ def parse_float_list(values: str) -> List[float]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="init_fidelity と p_swap のスイープ実験")
+    parser = argparse.ArgumentParser(
+        description="init_fidelity と p_swap のスイープ実験"
+    )
     parser.add_argument(
         "--init-fidelities",
         type=parse_float_list,

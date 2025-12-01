@@ -111,8 +111,14 @@ class ControllerApp(Application):
         swap_plans = batch_EDP(
             qnet=self.net, reqs=self.requests, qcs=self.new_qcs, gen_rate=self.gen_rate
         )
-        for i in range(len(swap_plans)):
-            self.requests[i].swap_plan = swap_plans[i]
+        for i, plan in enumerate(swap_plans):
+            if plan is None:
+                log.logger.warning(
+                    f"swap plan not found for request {self.requests[i].name}"
+                )
+                self.requests[i].is_done = True
+                continue
+            self.requests[i].swap_plan = plan
 
     def init_qcs(self):
         # qc.fidelityを設定
@@ -157,6 +163,12 @@ class ControllerApp(Application):
         print(self._simulator.tc, "req routine start")
         is_all_done = True
         for req in self.requests:
+            if req.swap_plan is None:
+                if not req.is_done:
+                    log.logger.warning(f"skip request without swap plan: {req.name}")
+                    req.is_done = True
+                continue
+
             # 終了判定
             root_op, ops = req.swap_plan
             assert isinstance(root_op, Operation)

@@ -1,6 +1,12 @@
 import contextlib
 import os
+import sys
+from pathlib import Path
 from typing import Iterable, List
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import matplotlib.pyplot as plt
 
@@ -66,6 +72,7 @@ def main():
         "sim_time": 10_000,
         "f_req": 0.8,
     }
+    os.makedirs("data", exist_ok=True)
 
     # 1) init_fidelity=0.9固定、p_swapを変化
     p_values = [0.2, 0.3, 0.4, 0.5, 0.6]
@@ -78,7 +85,7 @@ def main():
         ys=throughput_p,
         xlabel="p_swap",
         title="Throughput at init_fidelity=0.9",
-        outfile="throughput_vs_p_swap.png",
+        outfile=os.path.join("data", "throughput_vs_p_swap.png"),
     )
 
     # 2) p_swap=0.4固定、init_fidelityを変化
@@ -92,7 +99,7 @@ def main():
         ys=throughput_fid,
         xlabel="init_fidelity",
         title="Throughput at p_swap=0.4",
-        outfile="throughput_vs_init_fidelity.png",
+        outfile=os.path.join("data", "throughput_vs_init_fidelity.png"),
     )
 
     print("==== init_fidelity=0.9 固定、p_swap掃引 ====")
