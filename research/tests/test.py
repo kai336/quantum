@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 import qns.utils.log as log
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
+from edp.sim import SIMULATOR_ACCURACY
 from qns.entity.node import QNode
 from qns.network import QuantumNetwork
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
@@ -70,7 +71,7 @@ def run_single(
     waxman_alpha = 0.2
     waxman_beta = 0.6
 
-    s = Simulator(0, sim_time, 1)
+    s = Simulator(0, sim_time, SIMULATOR_ACCURACY)
     set_seed(seed)
 
     topo = WaxmanTopology(

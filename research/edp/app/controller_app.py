@@ -63,11 +63,12 @@ class ControllerApp(Application):
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
         self.completed_requests: List[dict] = []
-        self.completed_requests: List[dict] = []
         self.enable_pumping: bool = enable_pumping
         self.max_pump_step: int = max_pump_step
         self.pumping_ops: List[Operation] = []
         self.pump_op_target: Dict[Operation, Operation] = {}
+        self.gen_interval_slot: int = self._calc_gen_interval_slot()
+        self._next_gen_time_slot: int | None = None
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -91,6 +92,7 @@ class ControllerApp(Application):
     def init_event(self, t: Time):
         # 初期イベントを挿入
         # gen_ep -> req_routine -> link_manager_routine -> gen_ep -> ...
+        self._next_gen_time_slot = t.time_slot
         gen_ep_routine = func_to_event(t=t, fn=self.gen_EP_routine, by=self)
         self._simulator.add_event(gen_ep_routine)
         # req_routine = func_to_event(t=t, fn=self.request_handler_routine, by=self)
@@ -151,19 +153,24 @@ class ControllerApp(Application):
         # 全チャネルでリンクレベルもつれ生成
         print(self._simulator.tc, "gen ep routine start")
         tc = self._simulator.tc
-        for qc in self.new_qcs:
-            if not qc.has_free_memory:
-                continue
+        if self._next_gen_time_slot is None:
+            self._next_gen_time_slot = tc.time_slot
 
-            nodes = qc.node_list
-            _ = self.gen_single_EP(
-                src=nodes[0],
-                dest=nodes[1],
-                fidelity=qc.fidelity_init,
-                t=tc,
-                qc=qc,
-            )
-            # print(self._simulator.tc, "gen link")
+        if tc.time_slot >= self._next_gen_time_slot:
+            for qc in self.new_qcs:
+                if not qc.has_free_memory:
+                    continue
+
+                nodes = qc.node_list
+                _ = self.gen_single_EP(
+                    src=nodes[0],
+                    dest=nodes[1],
+                    fidelity=qc.fidelity_init,
+                    t=tc,
+                    qc=qc,
+                )
+            # 次回の生成時刻を更新
+            self._next_gen_time_slot += self.gen_interval_slot
 
         self._add_tick_event(fn=self.request_handler_routine)
 
@@ -559,3 +566,16 @@ class ControllerApp(Application):
         tn = tc.__add__(t_tick)
         next_event = func_to_event(t=tn, fn=fn, by=self)
         self._simulator.add_event(next_event)
+
+    def _calc_gen_interval_slot(self) -> int:
+        if self.gen_rate <= 0:
+            log.logger.warning(
+                "gen_rateが0以下のため、生成間隔をデフォルト1タイムスロットに設定します"
+            )
+            return 1
+        t = (1/self.gen_rate) * 
+        interval = Time(t)
+        if interval.time_slot <= 0:
+            return 1
+
+        return interval.time_slot
