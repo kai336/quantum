@@ -4,7 +4,7 @@
 # もつれ(LinkEP)の時間経過によるデコヒーレンスモデル
 from numpy import exp
 
-T_MEM: float = 10000  # コヒーレンス時間
+T_MEM: float = 1000  # コヒーレンス時間
 
 
 def f_link(f: float, dt: float):

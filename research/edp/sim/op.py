@@ -1,11 +1,14 @@
 # swap, purify等の操作を扱うクラス
 # swapping treeを構成するノード
 from enum import Enum, auto
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from qns.entity.node import QNode
 
 from edp.sim.ep import EP
+
+if TYPE_CHECKING:
+    from edp.sim.new_request import NewRequest
 
 
 class OpType(Enum):
@@ -34,7 +37,11 @@ class Operation:
         parent: Optional["Operation"] = None,
         children: Optional[List["Operation"]] = None,
         ep: Optional[EP] = None,
-        pur_eps: List[EP] = [],
+        pur_eps: Optional[List[EP]] = None,
+        is_pump_target: bool = False,
+        pump_step: int = 0,
+        parent_swap: Optional["Operation"] = None,
+        request: Optional["NewRequest"] = None,
     ):
         self.name = name
         self.type = type
@@ -46,6 +53,10 @@ class Operation:
         self.children = children or []
         self.ep = ep  # この操作が完了した後にできるもつれ
         self.pur_eps = pur_eps or []
+        self.is_pump_target = is_pump_target
+        self.pump_step = pump_step
+        self.parent_swap = parent_swap
+        self.request = request  # 対応するリクエスト（ポンピング用フラグ参照）
 
     def is_leaf(self) -> bool:
         # 自分が葉ノードかどうか
@@ -107,6 +118,9 @@ class Operation:
         # このOPに必要なEPを再生成
         self.ep = None
         self.pur_eps.clear()
+        self.is_pump_target = False
+        self.parent_swap = None
+        self.pump_step = 0
         if not self.is_leaf():
             self.status = OpStatus.RETRY
             for c in self.children:

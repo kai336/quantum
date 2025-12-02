@@ -16,6 +16,7 @@ class NewRequest(Request):
         priority,
         f_req: float = 0.7,
         is_done: bool = False,
+        use_pumping: bool = True,
     ):
         super().__init__(src, dest)
         self.name = name
@@ -25,6 +26,7 @@ class NewRequest(Request):
         self.reserve_links = []
         self.f_req = f_req
         self.is_done = is_done
+        self.use_pumping = use_pumping
 
     def __repr__(self):
         return f"NewRequest({self.src}, {self.dest}, {self.name}, {self.priority}, {self.attr})"

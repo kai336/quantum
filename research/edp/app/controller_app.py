@@ -1,7 +1,7 @@
 # controller_app.py
 # main duty: controll the entire network
 import random
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import qns.utils.log as log
 from qns.entity.node.app import Application
@@ -29,6 +29,7 @@ f_req = 0.85  # 最小要求忠実度
 f_cut = 0.70  # 切り捨て閾値
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
+max_pump_step = 3
 
 
 class ControllerApp(Application):
@@ -44,6 +45,8 @@ class ControllerApp(Application):
         f_req=f_req,
         f_cut=f_cut,
         init_fidelity: float = init_fidelity,
+        enable_pumping: bool = True,
+        max_pump_step: int = max_pump_step,
     ):
         super().__init__()
         self.p_swap: float = p_swap
@@ -61,6 +64,10 @@ class ControllerApp(Application):
         self.nodes: List[QNode] | None = None
         self.completed_requests: List[dict] = []
         self.completed_requests: List[dict] = []
+        self.enable_pumping: bool = enable_pumping
+        self.max_pump_step: int = max_pump_step
+        self.pumping_ops: List[Operation] = []
+        self.pump_op_target: Dict[Operation, Operation] = {}
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -119,6 +126,9 @@ class ControllerApp(Application):
                 self.requests[i].is_done = True
                 continue
             self.requests[i].swap_plan = plan
+            _, ops = plan
+            for op in ops:
+                op.request = self.requests[i]
 
     def init_qcs(self):
         # qc.fidelityを設定
@@ -196,6 +206,8 @@ class ControllerApp(Application):
                 is_all_done = False
                 self._advance_request(req, root_op, ops)
 
+        self._advance_pumping_ops()
+
         if is_all_done:
             # 全リクエスト終わったらシミュレータのイベント全消しして終了
             # TODO self.result = [time, ...]
@@ -233,7 +245,7 @@ class ControllerApp(Application):
             print(self._simulator.tc, op, "start op")
             self._run_op(req, op)
 
-    def _run_op(self, req: NewRequest, op: Operation):
+    def _run_op(self, req: Optional[NewRequest], op: Operation):
         # 操作を実行
         op.start()
         if op.type == OpType.GEN_LINK:
@@ -260,6 +272,13 @@ class ControllerApp(Application):
         print(self._simulator.tc, "gen link success")
         ep_cand.set_owner(op)
         op.done()
+        if op in self.pump_op_target:
+            target = self.pump_op_target.get(op)
+            self._cleanup_pump_op(op)
+            if target is not None:
+                self._on_sacrificial_ep_ready(sacrificial_op=op, target_op=target)
+        else:
+            self._maybe_start_pumping(op)
 
     def _handle_swap(self, op: Operation):
         # swap
@@ -294,6 +313,7 @@ class ControllerApp(Application):
             new_ep.set_owner(op)
             op.done()
             print(self._simulator.tc, "swap success")
+            self._maybe_start_pumping(op)
         else:
             # 再生成要求
             print(self._simulator.tc, "swap failed")
@@ -314,6 +334,7 @@ class ControllerApp(Application):
         new_fid = f_pur(ft=fid_target, fs=fid_sacrifice)  # purify成功後のfidelity
 
         op.pur_eps.clear()
+        success = False
         # purify　実行
         if random.random() < p_pur(ft=fid_target, fs=fid_sacrifice):
             print(self._simulator.tc, "purify success")
@@ -323,12 +344,166 @@ class ControllerApp(Application):
                 pre = op.children[0]
                 ep_target.change_owner(pre_owner=pre, new_owner=op)
             op.done()
+            success = True
         else:  # 失敗したらtargetEPも消す
             print(self._simulator.tc, "purify failed")
             self.consume_EP(ep_target)
             op.request_regen()
+            success = False
 
         assert len(op.pur_eps) == 0
+        if op in self.pump_op_target:
+            target = self.pump_op_target.pop(op)
+            self._cleanup_pump_op(op)
+            self._on_pump_purify_done(
+                purify_op=op,
+                target_op=target,
+                success=success,
+                target_ep=ep_target,
+                new_fid=new_fid if success else None,
+            )
+        elif success:
+            self._maybe_start_pumping(op)
+
+    def _is_swap_waiting(self, op_child: Operation) -> bool:
+        op_parent = op_child.parent
+        if op_parent is None:
+            return False
+        if op_parent.type != OpType.SWAP:
+            return False
+        if len(op_parent.children) < 2:
+            return False
+
+        left = op_parent.children[0]
+        right = op_parent.children[1]
+        other = right if op_child is left else left
+        if other.status in (OpStatus.DONE, OpStatus.READY):
+            return False
+        return True
+
+    def _maybe_start_pumping(self, op_child: Operation):
+        if not self.enable_pumping:
+            return
+        if op_child.ep is None:
+            return
+        if not self._is_swap_waiting(op_child):
+            return
+        req = getattr(op_child, "request", None)
+        if req is not None and hasattr(req, "use_pumping") and not req.use_pumping:
+            return
+
+        op_child.is_pump_target = True
+        op_child.parent_swap = op_child.parent
+        if not self._has_pending_pump(op_child):
+            self._schedule_pump_gen_link(target_op=op_child)
+
+    def _has_pending_pump(self, target_op: Operation) -> bool:
+        return any(t is target_op for t in self.pump_op_target.values())
+
+    def _should_stop_pumping(self, target_op: Operation) -> bool:
+        if not self.enable_pumping:
+            return True
+        req = getattr(target_op, "request", None)
+        if req is not None and hasattr(req, "use_pumping") and not req.use_pumping:
+            return True
+        if target_op.ep is None:
+            return True
+        if not self._is_swap_waiting(target_op):
+            return True
+        if target_op.pump_step >= self.max_pump_step:
+            return True
+        return False
+
+    def _schedule_pump_gen_link(self, target_op: Operation):
+        if self._should_stop_pumping(target_op):
+            self._clear_pump_state(target_op)
+            return
+
+        name = f"PUMP_GEN_LINK({target_op.n1.name}-{target_op.n2.name})-step{target_op.pump_step + 1}"
+        op = Operation(
+            name=name,
+            type=OpType.GEN_LINK,
+            n1=target_op.n1,
+            n2=target_op.n2,
+            status=OpStatus.READY,
+            request=target_op.request,
+            parent_swap=target_op.parent_swap,
+        )
+        self.pumping_ops.append(op)
+        self.pump_op_target[op] = target_op
+
+    def _on_sacrificial_ep_ready(self, sacrificial_op: Operation, target_op: Operation):
+        sacrificial_ep = sacrificial_op.ep
+        target_ep = target_op.ep
+        if sacrificial_ep is None or target_ep is None:
+            self._clear_pump_state(target_op)
+            return
+
+        name = f"PUMP_PURIFY({target_op.n1.name}-{target_op.n2.name})-step{target_op.pump_step + 1}"
+        purify_op = Operation(
+            name=name,
+            type=OpType.PURIFY,
+            n1=target_op.n1,
+            n2=target_op.n2,
+            status=OpStatus.READY,
+            children=[target_op],
+            pur_eps=[sacrificial_ep, target_ep],
+            request=target_op.request,
+            parent_swap=target_op.parent_swap,
+        )
+        self.pumping_ops.append(purify_op)
+        self.pump_op_target[purify_op] = target_op
+
+    def _on_pump_purify_done(
+        self,
+        purify_op: Operation,
+        target_op: Operation,
+        success: bool,
+        target_ep: EP | None,
+        new_fid: float | None,
+    ):
+        if not success or target_ep is None:
+            self._clear_pump_state(target_op)
+            return
+
+        target_op.pump_step += 1
+        if target_ep.owner_op is purify_op:
+            target_ep.change_owner(pre_owner=purify_op, new_owner=target_op)
+        target_op.ep = target_ep
+        if self._should_stop_pumping(target_op):
+            self._clear_pump_state(target_op)
+            return
+        self._schedule_pump_gen_link(target_op=target_op)
+
+    def _advance_pumping_ops(self):
+        if not self.pumping_ops:
+            return
+
+        for op in list(self.pumping_ops):
+            target = self.pump_op_target.get(op)
+            if target is not None and self._should_stop_pumping(target):
+                self._clear_pump_state(target)
+                self._cleanup_pump_op(op)
+                continue
+            if op.status == OpStatus.READY:
+                req = target.request if target is not None else None
+                self._run_op(req, op)
+
+    def _cleanup_pump_op(self, op: Operation):
+        if op in self.pumping_ops:
+            self.pumping_ops.remove(op)
+        self.pump_op_target.pop(op, None)
+
+    def _clear_pump_state(self, target_op: Operation):
+        for op, tgt in list(self.pump_op_target.items()):
+            if tgt is target_op:
+                if op.ep is not None and op.ep.owner_op is op:
+                    self.consume_EP(op.ep)
+                self._cleanup_pump_op(op)
+        target_op.is_pump_target = False
+        target_op.parent_swap = None
+        if target_op.ep is None:
+            target_op.pump_step = 0
 
     def gen_single_EP(
         self,
