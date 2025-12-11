@@ -37,8 +37,8 @@ VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 P_SWAP = 0.4
 GEN_RATE_VALUES = list(range(10, 55, 5))
-OUTPUT_CSV = os.path.join("data", "pumping_compare_gen_rate.csv")
-OUTPUT_FIG = os.path.join("data", "pumping_compare_gen_rate.png")
+OUTPUT_CSV = os.path.join("data", "psw_compare_gen_rate.csv")
+OUTPUT_FIG = os.path.join("data", "psw_compare_gen_rate.png")
 
 
 @dataclass
@@ -54,7 +54,7 @@ class RunResult:
 @dataclass
 class SweepSummary:
     gen_rate: int
-    enable_pumping: bool
+    enable_psw: bool
     avg_time_per_request: float | None
     total_finished: int
     trial_count: int
@@ -72,7 +72,7 @@ def run_single(
     gen_rate: int,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> RunResult:
     """単発シミュレーションを実行し、リクエスト完了時刻を記録する。"""
     memory_capacity = 5
@@ -115,7 +115,7 @@ def run_single(
                 f_req=f_req,
                 gen_rate=gen_rate,
                 init_fidelity=init_fidelity,
-                enable_pumping=enable_pumping,
+                enable_psw=enable_psw,
             )
         ],
     )
@@ -168,7 +168,7 @@ def run_batch(
     gen_rate: int,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> List[RunResult]:
     """同一条件で複数回実行して統計を取る。"""
     results: List[RunResult] = []
@@ -187,7 +187,7 @@ def run_batch(
                     gen_rate=gen_rate,
                     init_fidelity=init_fidelity,
                     verbose_sim=verbose_sim,
-                    enable_pumping=enable_pumping,
+                    enable_psw=enable_psw,
                 )
                 results.append(res)
     return results
@@ -206,7 +206,7 @@ def sweep(
     p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> List[SweepSummary]:
     """gen_rateを動かしつつポンピング有無ごとの平均完了時間を求める。"""
     summaries: List[SweepSummary] = []
@@ -223,7 +223,7 @@ def sweep(
             gen_rate=gen_rate,
             init_fidelity=init_fidelity,
             verbose_sim=verbose_sim,
-            enable_pumping=enable_pumping,
+            enable_psw=enable_psw,
         )
         total_finished = sum(r.finished for r in batch)
         total_finish_time = sum(r.finish_time_sum for r in batch)
@@ -233,7 +233,7 @@ def sweep(
         summaries.append(
             SweepSummary(
                 gen_rate=gen_rate,
-                enable_pumping=enable_pumping,
+                enable_psw=enable_psw,
                 avg_time_per_request=avg_time_per_request,
                 total_finished=total_finished,
                 trial_count=len(batch),
@@ -252,7 +252,7 @@ def write_csv(path: str, rows: Iterable[SweepSummary]) -> None:
                 if r.avg_time_per_request is None
                 else f"{r.avg_time_per_request:.2f}"
             )
-            mode = "pumping_on" if r.enable_pumping else "pumping_off"
+            mode = "psw_on" if r.enable_psw else "psw_off"
             f.write(
                 f"{mode},{r.gen_rate},{avg_time},{r.trial_count},{r.total_finished}\n"
             )
@@ -281,10 +281,10 @@ def plot(
 
     plt.figure(figsize=(6.4, 4))
     plt.plot(
-        xs_on, ys_on, marker="o", color="#1b73e8", linewidth=2, label="ポンピングあり"
+        xs_on, ys_on, marker="o", color="#1b73e8", linewidth=2, label="PSWあり"
     )
     plt.plot(
-        xs_off, ys_off, marker="s", color="#ef6c00", linewidth=2, label="ポンピングなし"
+        xs_off, ys_off, marker="s", color="#ef6c00", linewidth=2, label="PSWなし"
     )
     plt.xlabel("gen_rate (1/sec)")
     plt.ylabel("平均リクエスト完了時間 (timeslot)")
@@ -300,7 +300,7 @@ def main() -> None:
     log.logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
     os.makedirs("data", exist_ok=True)
 
-    print("ポンピングありのgen_rateスイープを実行します")
+    print("PSWありのgen_rateスイープを実行します")
     summaries_on = sweep(
         gen_rate_values=GEN_RATE_VALUES,
         seeds=SEEDS,
@@ -313,9 +313,9 @@ def main() -> None:
         p_swap=P_SWAP,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
-        enable_pumping=True,
+        enable_psw=True,
     )
-    print("ポンピングなしのgen_rateスイープを実行します")
+    print("PSWなしのgen_rateスイープを実行します")
     summaries_off = sweep(
         gen_rate_values=GEN_RATE_VALUES,
         seeds=SEEDS,
@@ -328,7 +328,7 @@ def main() -> None:
         p_swap=P_SWAP,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
-        enable_pumping=False,
+        enable_psw=False,
     )
 
     # CSV保存

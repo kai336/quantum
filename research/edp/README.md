@@ -20,7 +20,7 @@
 ## purpose
 - the first step of simulating of EDP like algorithm on SimQN
 - measuring swap-waiting time for established entanglement
-- 最終的には対照実験 EDPlike vs EDPlike + ent.pumping while waiting for swap
+- 最終的には対照実験 EDPlike での評価を目指す
 ## about
 - 離散イベント駆動型
 - routing & swapping algorithm: smth like EDP

@@ -35,8 +35,8 @@ RUNS_PER_SEED = 2
 VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 P_SWAP_VALUES = [0.2, 0.3, 0.4, 0.5, 0.6]
-OUTPUT_CSV = os.path.join("data", "pumping_compare.csv")
-OUTPUT_FIG = os.path.join("data", "pumping_compare.png")
+OUTPUT_CSV = os.path.join("data", "psw_compare.csv")
+OUTPUT_FIG = os.path.join("data", "psw_compare.png")
 
 
 @dataclass
@@ -50,7 +50,7 @@ class RunResult:
 @dataclass
 class SweepSummary:
     p_swap: float
-    enable_pumping: bool
+    enable_psw: bool
     avg_time_per_request: float | None
     total_finished: int
     trial_count: int
@@ -66,7 +66,7 @@ def run_single(
     p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> RunResult:
     """単発シミュレーションを実行し、リクエスト完了時刻を記録する。"""
     memory_capacity = 5
@@ -106,7 +106,7 @@ def run_single(
                 f_req=f_req,
                 gen_rate=gen_rate,
                 init_fidelity=init_fidelity,
-                enable_pumping=enable_pumping,
+                enable_psw=enable_psw,
             )
         ],
     )
@@ -155,7 +155,7 @@ def run_batch(
     p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> List[RunResult]:
     """同一条件で複数回実行して統計を取る。"""
     results: List[RunResult] = []
@@ -171,7 +171,7 @@ def run_batch(
                 p_swap=p_swap,
                 init_fidelity=init_fidelity,
                 verbose_sim=verbose_sim,
-                enable_pumping=enable_pumping,
+                enable_psw=enable_psw,
             )
             results.append(res)
     return results
@@ -188,7 +188,7 @@ def sweep(
     f_req: float,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_pumping: bool,
+    enable_psw: bool,
 ) -> List[SweepSummary]:
     """p_swapを動かしつつポンピング有無ごとの平均完了時間を求める。"""
     summaries: List[SweepSummary] = []
@@ -203,7 +203,7 @@ def sweep(
             p_swap=p_swap,
             init_fidelity=init_fidelity,
             verbose_sim=verbose_sim,
-            enable_pumping=enable_pumping,
+            enable_psw=enable_psw,
         )
         total_finished = sum(r.finished for r in batch)
         total_finish_time = sum(r.finish_time_sum for r in batch)
@@ -213,7 +213,7 @@ def sweep(
         summaries.append(
             SweepSummary(
                 p_swap=p_swap,
-                enable_pumping=enable_pumping,
+                enable_psw=enable_psw,
                 avg_time_per_request=avg_time_per_request,
                 total_finished=total_finished,
                 trial_count=len(batch),
@@ -228,7 +228,7 @@ def write_csv(path: str, rows: Iterable[SweepSummary]) -> None:
         f.write("mode,p_swap,avg_time_per_request_slot,trial_count,total_finished\n")
         for r in rows:
             avg_time = "" if r.avg_time_per_request is None else f"{r.avg_time_per_request:.2f}"
-            mode = "pumping_on" if r.enable_pumping else "pumping_off"
+            mode = "psw_on" if r.enable_psw else "psw_off"
             f.write(
                 f"{mode},{r.p_swap:.1f},{avg_time},{r.trial_count},{r.total_finished}\n"
             )
@@ -257,7 +257,7 @@ def plot(
     plt.plot(xs_off, ys_off, marker="s", color="#ef6c00", linewidth=2, label="Pumping off")
     plt.xlabel("p_swap")
     plt.ylabel("Average request completion time (timeslot)")
-    plt.title("Average completion time vs p_swap (pumping on/off)")
+    plt.title("Average completion time vs p_swap (PSW on/off)")
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.legend()
     plt.tight_layout()
@@ -269,7 +269,7 @@ def main() -> None:
     log.logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
     os.makedirs("data", exist_ok=True)
 
-    print("Running sweep with pumping enabled")
+    print("Running sweep with PSW enabled")
     summaries_on = sweep(
         p_swap_values=P_SWAP_VALUES,
         seeds=SEEDS,
@@ -280,9 +280,9 @@ def main() -> None:
         f_req=F_REQ,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
-        enable_pumping=True,
+        enable_psw=True,
     )
-    print("Running sweep with pumping disabled")
+    print("Running sweep with PSW disabled")
     summaries_off = sweep(
         p_swap_values=P_SWAP_VALUES,
         seeds=SEEDS,
@@ -293,7 +293,7 @@ def main() -> None:
         f_req=F_REQ,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
-        enable_pumping=False,
+        enable_psw=False,
     )
 
     # CSV保存
