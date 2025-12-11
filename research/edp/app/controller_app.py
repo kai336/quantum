@@ -573,7 +573,7 @@ class ControllerApp(Application):
                 "gen_rateが0以下のため、生成間隔をデフォルト1タイムスロットに設定します"
             )
             return 1
-        t = (1/self.gen_rate) * 
+        t = 1 / self.gen_rate
         interval = Time(t)
         if interval.time_slot <= 0:
             return 1

@@ -247,7 +247,11 @@ def write_csv(path: str, rows: Iterable[SweepSummary]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         f.write("mode,gen_rate,avg_time_per_request_slot,trial_count,total_finished\n")
         for r in rows:
-            avg_time = "" if r.avg_time_per_request is None else f"{r.avg_time_per_request:.2f}"
+            avg_time = (
+                ""
+                if r.avg_time_per_request is None
+                else f"{r.avg_time_per_request:.2f}"
+            )
             mode = "pumping_on" if r.enable_pumping else "pumping_off"
             f.write(
                 f"{mode},{r.gen_rate},{avg_time},{r.trial_count},{r.total_finished}\n"
@@ -260,11 +264,14 @@ def plot(
     output_path: str,
 ) -> None:
     """ポンピング有無の平均完了時間を重ね描きする。"""
+
     def _prepare(rows: List[SweepSummary]) -> Tuple[List[int], List[float]]:
         rows_sorted = sorted(rows, key=lambda x: x.gen_rate)
         xs = [r.gen_rate for r in rows_sorted]
         ys = [
-            r.avg_time_per_request if r.avg_time_per_request is not None else float("nan")
+            r.avg_time_per_request
+            if r.avg_time_per_request is not None
+            else float("nan")
             for r in rows_sorted
         ]
         return xs, ys
@@ -273,8 +280,12 @@ def plot(
     xs_off, ys_off = _prepare(rows_off)
 
     plt.figure(figsize=(6.4, 4))
-    plt.plot(xs_on, ys_on, marker="o", color="#1b73e8", linewidth=2, label="ポンピングあり")
-    plt.plot(xs_off, ys_off, marker="s", color="#ef6c00", linewidth=2, label="ポンピングなし")
+    plt.plot(
+        xs_on, ys_on, marker="o", color="#1b73e8", linewidth=2, label="ポンピングあり"
+    )
+    plt.plot(
+        xs_off, ys_off, marker="s", color="#ef6c00", linewidth=2, label="ポンピングなし"
+    )
     plt.xlabel("gen_rate (1/sec)")
     plt.ylabel("平均リクエスト完了時間 (timeslot)")
     plt.title(f"gen_rateスイープ (p_swap={P_SWAP})")
