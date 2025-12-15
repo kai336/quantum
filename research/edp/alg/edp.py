@@ -54,18 +54,12 @@ def batch_EDP(
     qnet_dist = qnet2DictConverter(qcs=qcs, gen_rate=gen_rate)
     results: List[Tuple[float, dict] | None] = []
     for req in reqs:
-        print("req name: ", req.name)
-        print(req.src, req.dest)
         paths = qnet.query_route(req.src, req.dest)
-        print(paths)
         if not paths:
-            print("route not found; skip EDP")
             results.append(None)
             continue
 
         path = paths[0][2]
-        print("path:", path)
-        print("f_req: ", req.f_req)
         res = EDP(
             src=req.src, dest=req.dest, qnet=qnet_dist, path=path, f_req=req.f_req
         )
@@ -73,9 +67,7 @@ def batch_EDP(
             op_list = build_ops_from_edp_result(res)
             results.append(op_list)
         else:
-            print("no swapping tree found")
             results.append(None)
-    print(results)
     return results
 
 

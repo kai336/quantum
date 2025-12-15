@@ -4,13 +4,12 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional, TextIO
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import qns.utils.log as log
 from edp.app.controller_app import ControllerApp
 from edp.app.node_app import NodeApp
 from edp.sim import SIMULATOR_ACCURACY
@@ -30,8 +29,8 @@ REQUESTS = 5
 SIM_TIME = 1_000_000
 F_REQ = 0.8
 INIT_FIDELITY = 0.99
-SEEDS: List[int] = [42, 43, 44]
-RUNS_PER_SEED = 2
+SEEDS: List[int] = list(range(10))
+RUNS_PER_SEED = 5
 VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 
@@ -43,6 +42,7 @@ class RunResult:
     throughput: float  # 完了要求 / timeslot（参考情報として保持）
     avg_finish_slot: float | None
     finish_time_sum: float
+    fidelity_sum: float
 
 
 @dataclass
@@ -51,6 +51,7 @@ class SweepSummary:
     avg_time_per_request: float | None
     total_finished: int
     trial_count: int
+    avg_fidelity_per_request: float | None
 
 
 def run_single(
@@ -63,6 +64,8 @@ def run_single(
     p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
+    enable_psw: bool,
+    psw_threshold: Optional[float] = None,
 ) -> RunResult:
     """単発シミュレーションを実行し、スループットなどを返す。"""
     memory_capacity = 5
@@ -102,6 +105,8 @@ def run_single(
                 f_req=f_req,
                 gen_rate=gen_rate,
                 init_fidelity=init_fidelity,
+                enable_psw=enable_psw,
+                psw_threshold=psw_threshold,
             )
         ],
     )
@@ -133,6 +138,11 @@ def run_single(
         if finished
         else 0.0
     )
+    fidelity_sum = (
+        sum(r["fidelity"] for r in controller_app.completed_requests)
+        if finished
+        else 0.0
+    )
 
     return RunResult(
         seed=seed,
@@ -140,6 +150,7 @@ def run_single(
         throughput=throughput,
         avg_finish_slot=avg_finish,
         finish_time_sum=finish_time_sum,
+        fidelity_sum=fidelity_sum,
     )
 
 
@@ -154,24 +165,25 @@ def run_batch(
     p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
+    enable_psw: bool,
+    psw_threshold: Optional[float] = None,
 ) -> List[RunResult]:
     """Experiment.py と同じように複数条件でバッチ実行する。"""
     results: List[RunResult] = []
     for base_seed in seeds:
-        for rep in range(runs_per_seed):
-            # 同一シードで繰り返す場合でも乱数をずらす
-            effective_seed = base_seed + rep
-            res = run_single(
-                nodes=nodes,
-                requests=requests,
-                seed=effective_seed,
-                sim_time=sim_time,
-                f_req=f_req,
-                p_swap=p_swap,
-                init_fidelity=init_fidelity,
-                verbose_sim=verbose_sim,
-            )
-            results.append(res)
+        res = run_single(
+            nodes=nodes,
+            requests=requests,
+            seed=base_seed,
+            sim_time=sim_time,
+            f_req=f_req,
+            p_swap=p_swap,
+            init_fidelity=init_fidelity,
+            verbose_sim=verbose_sim,
+            enable_psw=enable_psw,
+            psw_threshold=psw_threshold,
+        )
+        results.append(res)
     return results
 
 
@@ -186,6 +198,8 @@ def sweep_p_swap(
     f_req: float,
     init_fidelity: float,
     verbose_sim: bool,
+    enable_psw: bool,
+    psw_threshold: Optional[float] = None,
 ) -> List[SweepSummary]:
     """p_swapを動かしながらバッチ実験を行い、平均スループットなどを返す。"""
     summaries: List[SweepSummary] = []
@@ -200,11 +214,17 @@ def sweep_p_swap(
             p_swap=p_swap,
             init_fidelity=init_fidelity,
             verbose_sim=verbose_sim,
+            enable_psw=enable_psw,
+            psw_threshold=psw_threshold,
         )
         total_finished = sum(r.finished for r in batch)
         total_finish_time = sum(r.finish_time_sum for r in batch)
+        total_fidelity = sum(r.fidelity_sum for r in batch)
         avg_time_per_request = (
             total_finish_time / total_finished if total_finished > 0 else None
+        )
+        avg_fidelity_per_request = (
+            total_fidelity / total_finished if total_finished > 0 else None
         )
         summaries.append(
             SweepSummary(
@@ -212,31 +232,34 @@ def sweep_p_swap(
                 avg_time_per_request=avg_time_per_request,
                 total_finished=total_finished,
                 trial_count=len(batch),
+                avg_fidelity_per_request=avg_fidelity_per_request,
             )
         )
     return summaries
 
 
-def write_csv(path: str, summaries: Iterable[SweepSummary]) -> None:
-    """p_swapスイープ結果をCSVに出力する。"""
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("p_swap,avg_time_per_request_slot,trial_count,total_finished\n")
-        for s in summaries:
-            avg_time = (
-                ""
-                if s.avg_time_per_request is None
-                else f"{s.avg_time_per_request:.2f}"
-            )
-            f.write(f"{s.p_swap:.1f},{avg_time},{s.trial_count},{s.total_finished}\n")
+def write_csv_stream(output: TextIO, summaries: Iterable[SweepSummary]) -> None:
+    """p_swapスイープ結果をCSVとして出力する。"""
+    output.write(
+        "p_swap,avg_time_per_request_slot,avg_fidelity_per_request,trial_count,total_finished\n"
+    )
+    for s in summaries:
+        avg_time = (
+            "" if s.avg_time_per_request is None else f"{s.avg_time_per_request:.2f}"
+        )
+        avg_fidelity = (
+            ""
+            if s.avg_fidelity_per_request is None
+            else f"{s.avg_fidelity_per_request:.4f}"
+        )
+        output.write(
+            f"{s.p_swap:.1f},{avg_time},{avg_fidelity},{s.trial_count},{s.total_finished}\n"
+        )
 
 
 def main() -> None:
-    log.logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
-
+    logging.shutdown
     p_swap_values = [round(0.2 + 0.1 * i, 1) for i in range(5)]
-    os.makedirs("data", exist_ok=True)
-    output_csv = os.path.join("data", "p_swap_throughput_sweep.csv")
-
     summaries = sweep_p_swap(
         p_swap_values=p_swap_values,
         seeds=SEEDS,
@@ -247,21 +270,10 @@ def main() -> None:
         f_req=F_REQ,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
+        enable_psw=True,
+        psw_threshold=0.9,
     )
-    write_csv(output_csv, summaries)
-
-    print("p_swapごとの平均リクエスト実行時間(timeslot)")
-    for s in summaries:
-        avg_time = (
-            "完了なし"
-            if s.avg_time_per_request is None
-            else f"{s.avg_time_per_request:.2f}"
-        )
-        print(
-            f"p_swap={s.p_swap:.1f} 平均実行時間(timeslot)={avg_time} "
-            f"試行数={s.trial_count} 完了要求数={s.total_finished}"
-        )
-    print(f"\nCSVを書き出しました: {output_csv}")
+    write_csv_stream(sys.stdout, summaries)
 
 
 if __name__ == "__main__":

@@ -13,14 +13,16 @@ class NewQC(QuantumChannel):
         node_list: List[QNode] = ...,
         bandwidth: int = 0,
         length: float = 0,
+        delay: float = 0,
         fidelity_init: float = 0.99,
         memory_capacity: int = 5,
     ):
         super().__init__(
-            name,
-            node_list,
-            bandwidth,
-            length,
+            name=name,
+            node_list=node_list,
+            bandwidth=bandwidth,
+            delay=delay,
+            length=length,
         )
         self.fidelity_init = fidelity_init
         self.memory_capacity = memory_capacity

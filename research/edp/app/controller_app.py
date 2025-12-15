@@ -1,5 +1,7 @@
 # controller_app.py
 # main duty: controll the entire network
+import logging
+import math
 import random
 from typing import Dict, List, Optional
 
@@ -29,6 +31,7 @@ f_req = 0.85  # 最小要求忠実度
 f_cut = 0.70  # 切り捨て閾値
 init_fidelity = 0.99
 l0_link_max = 5  # リンクレベルEPのバッファ数
+CLASSICAL_LIGHT_SPEED = 2e8  # m/s 相当（伝送遅延近似用）
 
 
 class ControllerApp(Application):
@@ -126,7 +129,7 @@ class ControllerApp(Application):
         )
         for i, plan in enumerate(swap_plans):
             if plan is None:
-                log.logger.warning(
+                log.logger.debug(
                     f"swap plan not found for request {self.requests[i].name}"
                 )
                 self.requests[i].is_done = True
@@ -148,6 +151,7 @@ class ControllerApp(Application):
                 node_list=node_list,
                 fidelity_init=fidelity_init,
                 memory_capacity=l0_link_max,
+                length=qc.length,
             )
             new_qcs.append(new_qc)
 
@@ -155,7 +159,7 @@ class ControllerApp(Application):
 
     def gen_EP_routine(self):
         # 全チャネルでリンクレベルもつれ生成
-        print(self._simulator.tc, "gen ep routine start")
+        log.logger.debug(f"{self._simulator.tc} gen ep routine start")
         tc = self._simulator.tc
         if self._next_gen_time_slot is None:
             self._next_gen_time_slot = tc.time_slot
@@ -181,12 +185,12 @@ class ControllerApp(Application):
     def request_handler_routine(self):
         # リクエストを管理
         # req.swap_plan, req.swap_progressから各操作を実行\
-        print(self._simulator.tc, "req routine start")
+        log.logger.debug(f"{self._simulator.tc} req routine start")
         is_all_done = True
         for req in self.requests:
             if req.swap_plan is None:
                 if not req.is_done:
-                    log.logger.warning(f"skip request without swap plan: {req.name}")
+                    log.logger.debug(f"skip request without swap plan: {req.name}")
                     req.is_done = True
                 continue
 
@@ -209,8 +213,8 @@ class ControllerApp(Application):
                         "fidelity": root_op.ep.fidelity,
                     }
                 )
-                print(
-                    "!!!!!!!!req", idx, " finished!!!!!!!! fid: ", root_op.ep.fidelity
+                log.logger.debug(
+                    f"!!!!!!!!req {idx} finished!!!!!!!! fid: {root_op.ep.fidelity}"
                 )
                 continue
             else:
@@ -230,7 +234,7 @@ class ControllerApp(Application):
     def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
         # self.links_next　を次のタイムスロットでself.linksに挿入
-        print(self._simulator.tc, "link routine start")
+        log.logger.debug(f"{self._simulator.tc} link routine start")
 
         if len(self.links_next) != 0:
             self.links += self.links_next
@@ -254,7 +258,7 @@ class ControllerApp(Application):
         # 現時点でREADYなopだけ実行
         ready_ops = [op for op in ops if op.status == OpStatus.READY]
         for op in ready_ops:  # コピー使うことで1操作分以上進まないようにする
-            print(self._simulator.tc, op, "start op")
+            log.logger.debug(f"{self._simulator.tc} {op} start op")
             self._run_op(req, op)
 
     def _run_op(self, req: Optional[NewRequest], op: Operation):
@@ -277,11 +281,11 @@ class ControllerApp(Application):
                 break
         if ep_cand is None:
             # まだEPなし
-            print(self._simulator.tc, "no link")
+            log.logger.debug(f"{self._simulator.tc} no link")
             op.request_regen()  # 再試行できるようREADYに戻す
             return
 
-        print(self._simulator.tc, "gen link success")
+        log.logger.debug(f"{self._simulator.tc} gen link success")
         ep_cand.set_owner(op)
         op.done()
         if op in self.psw_op_target:
@@ -311,6 +315,8 @@ class ControllerApp(Application):
 
         # 先にもとのもつれを廃棄しとく
         # 失敗・成功にかかわらずもとのもつれは使えない　& 新たにメモリ消費することなくswapできるので
+        len_left = ep_left.qc.length if ep_left.qc else 0.0
+        len_right = ep_right.qc.length if ep_right.qc else 0.0
         self.consume_EP(ep_left)
         self.consume_EP(ep_right)
 
@@ -319,13 +325,20 @@ class ControllerApp(Application):
             # 新しいEP生成
             new_fid = f_swap(ep_left.fidelity, ep_right.fidelity)
             tc = self._simulator.tc
-            new_ep = self.gen_single_EP(op.n1, op.n2, fidelity=new_fid, t=tc)
-            new_ep.set_owner(op)
-            op.done()
-            print(self._simulator.tc, "swap success")
+            delay_slot = self._calc_delay_slots(max(len_left, len_right))
+            t_done = tc.__add__(Time(time_slot=delay_slot))
+            event = func_to_event(
+                t=t_done,
+                fn=lambda op=op, fid=new_fid: self._finish_swap(op=op, fidelity=fid),
+                by=self,
+            )
+            self._simulator.add_event(event)
+            log.logger.debug(
+                f"{self._simulator.tc} swap scheduled with delay_slot={delay_slot}"
+            )
         else:
             # 再生成要求
-            print(self._simulator.tc, "swap failed")
+            log.logger.debug(f"{self._simulator.tc} swap failed")
             op.request_regen()
 
     def _handle_purify(self, op: Operation):
@@ -338,45 +351,27 @@ class ControllerApp(Application):
 
         fid_target = ep_target.fidelity
         fid_sacrifice = ep_sacrifice.fidelity
+        length = ep_target.qc.length if ep_target.qc else 0.0
 
         self.consume_EP(ep_sacrifice)  # どっちにしろ犠牲になるのでfidも取ったし消しとく
         new_fid = f_pur(ft=fid_target, fs=fid_sacrifice)  # purify成功後のfidelity
 
         op.pur_eps.clear()
-        success = False
-        # purify　実行
-        if random.random() < p_pur(ft=fid_target, fs=fid_sacrifice):
-            print(self._simulator.tc, "purify success")
-            ep_target.fidelity = new_fid  # fidelity更新
-            if op in self.psw_op_target:
-                target = self.psw_op_target.get(op)
-                if target is not None:
-                    if ep_target.owner_op is op:
-                        ep_target.change_owner(pre_owner=op, new_owner=target)
-                    target.ep = ep_target
-                    target.threshold_purified = True
-                self._cleanup_psw_op(op)
-                op.done()
-            else:
-                # すでにownerは自分になっているので念のため確認だけする
-                if ep_target.owner_op is not op:
-                    pre = op.children[0]
-                    ep_target.change_owner(pre_owner=pre, new_owner=op)
-                op.done()
-            success = True
-        else:  # 失敗したらtargetEPも消す
-            print(self._simulator.tc, "purify failed")
-            self.consume_EP(ep_target)
-            if op in self.psw_op_target:
-                target = self.psw_op_target.get(op)
-                if target is not None:
-                    target.threshold_purified = True
-                    target.request_regen()
-                self._cleanup_psw_op(op)
-                op.request_regen()
-            else:
-                op.request_regen()
-            success = False
+        success_prob = p_pur(ft=fid_target, fs=fid_sacrifice)
+        delay_slot = self._calc_delay_slots(length)
+        tc = self._simulator.tc
+        t_done = tc.__add__(Time(time_slot=delay_slot))
+        event = func_to_event(
+            t=t_done,
+            fn=lambda op=op, ep=ep_target, fid=new_fid, prob=success_prob: self._finish_purify(  # noqa: E501
+                op=op, ep_target=ep, new_fid=fid, success_prob=prob
+            ),
+            by=self,
+        )
+        self._simulator.add_event(event)
+        log.logger.debug(
+            f"{self._simulator.tc} purify scheduled with delay_slot={delay_slot}"
+        )
         assert len(op.pur_eps) == 0
 
     def gen_single_EP(
@@ -436,7 +431,7 @@ class ControllerApp(Application):
 
     def _calc_gen_interval_slot(self) -> int:
         if self.gen_rate <= 0:
-            log.logger.warning(
+            log.logger.debug(
                 "gen_rateが0以下のため、生成間隔をデフォルト1タイムスロットに設定します"
             )
             return 1
@@ -498,7 +493,9 @@ class ControllerApp(Application):
         self.psw_ops.append(op)
         self.psw_op_target[op] = target_op
 
-    def _on_psw_sacrificial_ready(self, sacrificial_op: Operation, target_op: Operation):
+    def _on_psw_sacrificial_ready(
+        self, sacrificial_op: Operation, target_op: Operation
+    ):
         sacrificial_ep = sacrificial_op.ep
         target_ep = target_op.ep
         if (
@@ -542,3 +539,68 @@ class ControllerApp(Application):
         if op in self.psw_ops:
             self.psw_ops.remove(op)
         self.psw_op_target.pop(op, None)
+
+    def _calc_delay_slots(self, length: float, round_trip: bool = True) -> int:
+        distance = length * (2 if round_trip else 1)
+        delay_sec = distance / CLASSICAL_LIGHT_SPEED if distance > 0 else 0.0
+        slots = math.ceil(delay_sec * self._simulator.accuracy)
+        return max(1, slots)
+
+    def _finish_swap(self, op: Operation, fidelity: float):
+        if op.status != OpStatus.RUNNING:
+            return
+        tc = self._simulator.tc
+        new_ep = self.gen_single_EP(op.n1, op.n2, fidelity=fidelity, t=tc)
+        if new_ep is None:
+            op.request_regen()
+            return
+        new_ep.set_owner(op)
+        op.done()
+        log.logger.debug(f"{self._simulator.tc} swap success")
+
+    def _finish_purify(
+        self, op: Operation, ep_target: EP, new_fid: float, success_prob: float
+    ):
+        if op.status != OpStatus.RUNNING:
+            return
+        # target EPが既に消えていたら再生成要求
+        if ep_target not in self.links:
+            if op in self.psw_op_target:
+                target = self.psw_op_target.get(op)
+                if target is not None:
+                    target.threshold_purified = True
+                    target.request_regen()
+                self._cleanup_psw_op(op)
+            op.request_regen()
+            return
+
+        success = random.random() < success_prob
+        if success:
+            log.logger.debug(f"{self._simulator.tc} purify success")
+            ep_target.fidelity = new_fid  # fidelity更新
+            if op in self.psw_op_target:
+                target = self.psw_op_target.get(op)
+                if target is not None:
+                    if ep_target.owner_op is op:
+                        ep_target.change_owner(pre_owner=op, new_owner=target)
+                    target.ep = ep_target
+                    target.threshold_purified = True
+                self._cleanup_psw_op(op)
+                op.done()
+            else:
+                if ep_target.owner_op is not op:
+                    pre = op.children[0]
+                    ep_target.change_owner(pre_owner=pre, new_owner=op)
+                op.done()
+        else:
+            log.logger.debug(f"{self._simulator.tc} purify failed")
+            self.consume_EP(ep_target)
+            if op in self.psw_op_target:
+                target = self.psw_op_target.get(op)
+                if target is not None:
+                    target.threshold_purified = True
+                    target.request_regen()
+                self._cleanup_psw_op(op)
+                op.request_regen()
+            else:
+                op.request_regen()
