@@ -30,6 +30,7 @@ REQUESTS = 5
 SIM_TIME = 1_000_000
 F_REQ = 0.8
 INIT_FIDELITY = 0.99
+P_SWAP = 0.4
 SEEDS: List[int] = list(range(10))
 RUNS_PER_SEED = 5
 VERBOSE_SIM = False
@@ -38,31 +39,19 @@ LOG_LEVEL = "INFO"
 
 @dataclass
 class RunResult:
+    enable_psw: bool
     seed: int
     finished: int
-    avg_finish_slot: float | None
-    avg_wait_per_swap: float | None
     avg_wait_per_request: float | None
-    swap_wait_times: List[int]
+    wait_times: List[int]
 
 
 @dataclass
-class SweepSummary:
-    p_swap: float
-    avg_wait_per_swap: float | None
+class PSWSummary:
+    enable_psw: bool
     avg_wait_per_request: float | None
-    total_swap_waits: int
+    total_finished: int
     trial_count: int
-
-
-def _average_wait_per_request(wait_times_by_req: dict[str, List[int]]) -> float | None:
-    per_req_avgs: List[float] = []
-    for waits in wait_times_by_req.values():
-        if waits:
-            per_req_avgs.append(mean(waits))
-    if not per_req_avgs:
-        return None
-    return mean(per_req_avgs)
 
 
 def run_single(
@@ -77,8 +66,8 @@ def run_single(
     verbose_sim: bool,
     enable_psw: bool,
     psw_threshold: Optional[float] = None,
-    ) -> RunResult:
-    """単発シミュレーションを実行し、swap待機時間を計測する。"""
+) -> RunResult:
+    """単発シミュレーションを実行し、リクエスト完了までの待ち時間を記録する。"""
     memory_capacity = 5
     gen_rate = 50
     waxman_size = 100000
@@ -137,26 +126,15 @@ def run_single(
 
     controller_app = controller_node.apps[0]
     finished = len(controller_app.completed_requests)
-    sim_span_slot = s.te.time_slot
-    avg_finish = (
-        sum(r["finish_time"] for r in controller_app.completed_requests) / finished
-        if finished
-        else None
-    )
-
-    waits = controller_app.swap_wait_times
-    avg_wait_per_swap = mean(waits) if waits else None
-    avg_wait_per_request = _average_wait_per_request(
-        controller_app.swap_wait_times_by_req
-    )
+    waits = [r["finish_time"] for r in controller_app.completed_requests]
+    avg_wait = mean(waits) if waits else None
 
     return RunResult(
+        enable_psw=enable_psw,
         seed=seed,
         finished=finished,
-        avg_finish_slot=avg_finish,
-        avg_wait_per_swap=avg_wait_per_swap,
-        avg_wait_per_request=avg_wait_per_request,
-        swap_wait_times=waits,
+        avg_wait_per_request=avg_wait,
+        wait_times=waits,
     )
 
 
@@ -195,23 +173,22 @@ def run_batch(
     return results
 
 
-def sweep_p_swap(
+def compare_psw_on_off(
     *,
-    p_swap_values: Iterable[float],
     seeds: Iterable[int],
     runs_per_seed: int,
     nodes: int,
     requests: int,
     sim_time: float,
     f_req: float,
+    p_swap: float,
     init_fidelity: float,
     verbose_sim: bool,
-    enable_psw: bool,
     psw_threshold: Optional[float] = None,
-) -> List[SweepSummary]:
-    """p_swapを動かしながらバッチ実験を行い、swap待機時間を返す。"""
-    summaries: List[SweepSummary] = []
-    for p_swap in p_swap_values:
+) -> List[PSWSummary]:
+    """PSWのON/OFFでリクエスト待ち時間を比較する。"""
+    summaries: List[PSWSummary] = []
+    for enable_psw in (False, True):
         batch = run_batch(
             seeds=seeds,
             runs_per_seed=runs_per_seed,
@@ -225,62 +202,47 @@ def sweep_p_swap(
             enable_psw=enable_psw,
             psw_threshold=psw_threshold,
         )
-        swap_wait_count = sum(len(r.swap_wait_times) for r in batch)
-        total_wait_time = sum(sum(r.swap_wait_times) for r in batch)
-        avg_wait_per_swap = (
-            total_wait_time / swap_wait_count if swap_wait_count > 0 else None
+        total_finished = sum(r.finished for r in batch)
+        total_wait = sum(sum(r.wait_times) for r in batch)
+        avg_wait_per_request = (
+            total_wait / total_finished if total_finished > 0 else None
         )
-
-        per_req_avgs: List[float] = []
-        for res in batch:
-            req_avg = res.avg_wait_per_request
-            if req_avg is not None:
-                per_req_avgs.append(req_avg)
-        avg_wait_per_request = mean(per_req_avgs) if per_req_avgs else None
-
         summaries.append(
-            SweepSummary(
-                p_swap=p_swap,
-                avg_wait_per_swap=avg_wait_per_swap,
+            PSWSummary(
+                enable_psw=enable_psw,
                 avg_wait_per_request=avg_wait_per_request,
-                total_swap_waits=swap_wait_count,
+                total_finished=total_finished,
                 trial_count=len(batch),
             )
         )
     return summaries
 
 
-def write_csv_stream(output: TextIO, summaries: Iterable[SweepSummary]) -> None:
-    """p_swapスイープ結果をCSVとして出力する。"""
+def write_csv_stream(output: TextIO, summaries: Iterable[PSWSummary]) -> None:
+    """比較結果をCSVとして出力する。"""
     output.write(
-        "p_swap,avg_wait_per_swap_slot,avg_wait_per_request_slot,trial_count,total_swap_waits\n"
+        "enable_psw,avg_wait_per_request_slot,trial_count,total_finished\n"
     )
     for s in summaries:
-        avg_wait_swap = (
-            "" if s.avg_wait_per_swap is None else f"{s.avg_wait_per_swap:.2f}"
-        )
-        avg_wait_req = (
+        avg_wait = (
             "" if s.avg_wait_per_request is None else f"{s.avg_wait_per_request:.2f}"
         )
-        output.write(
-            f"{s.p_swap:.1f},{avg_wait_swap},{avg_wait_req},{s.trial_count},{s.total_swap_waits}\n"
-        )
+        flag = "on" if s.enable_psw else "off"
+        output.write(f"{flag},{avg_wait},{s.trial_count},{s.total_finished}\n")
 
 
 def main() -> None:
     logging.shutdown
-    p_swap_values = [round(0.2 + 0.1 * i, 1) for i in range(5)]
-    summaries = sweep_p_swap(
-        p_swap_values=p_swap_values,
+    summaries = compare_psw_on_off(
         seeds=SEEDS,
         runs_per_seed=RUNS_PER_SEED,
         nodes=NODES,
         requests=REQUESTS,
         sim_time=SIM_TIME,
         f_req=F_REQ,
+        p_swap=P_SWAP,
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
-        enable_psw=True,
         psw_threshold=0.9,
     )
     write_csv_stream(sys.stdout, summaries)
