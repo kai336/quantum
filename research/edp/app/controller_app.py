@@ -76,6 +76,9 @@ class ControllerApp(Application):
         # PSW用にアドホックなオペレーションを管理
         self.psw_ops: List[Operation] = []
         self.psw_op_target: Dict[Operation, Operation] = {}
+        # swap待機時間の集計用
+        self.swap_wait_times: List[int] = []
+        self.swap_wait_times_by_req: Dict[str, List[int]] = {}
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -267,9 +270,35 @@ class ControllerApp(Application):
         if op.type == OpType.GEN_LINK:
             self._handle_gen_link(op)
         elif op.type == OpType.SWAP:
-            self._handle_swap(op)
+            self._handle_swap(op, req)
         elif op.type == OpType.PURIFY:
             self._handle_purify(op)
+
+    def _record_swap_waiting(
+        self,
+        *,
+        ep_left: Optional[EP],
+        ep_right: Optional[EP],
+        req: Optional[NewRequest],
+    ) -> None:
+        """swap実行時の待機時間を記録する。"""
+
+        def _wait_slots(ep: Optional[EP]) -> Optional[int]:
+            if ep is None or ep.created_at is None:
+                return None
+            return self._simulator.tc.time_slot - ep.created_at.time_slot
+
+        waits: List[int] = []
+        for ep in (ep_left, ep_right):
+            wait_slot = _wait_slots(ep)
+            if wait_slot is not None:
+                waits.append(wait_slot)
+
+        if waits:
+            self.swap_wait_times.extend(waits)
+            if req is not None:
+                bucket = self.swap_wait_times_by_req.setdefault(req.name, [])
+                bucket.extend(waits)
 
     def _handle_gen_link(self, op: Operation):
         # 生成済みEPを探す
@@ -294,7 +323,7 @@ class ControllerApp(Application):
             if target is not None:
                 self._on_psw_sacrificial_ready(sacrificial_op=op, target_op=target)
 
-    def _handle_swap(self, op: Operation):
+    def _handle_swap(self, op: Operation, req: Optional[NewRequest] = None):
         # swap
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
@@ -317,6 +346,11 @@ class ControllerApp(Application):
         # 失敗・成功にかかわらずもとのもつれは使えない　& 新たにメモリ消費することなくswapできるので
         len_left = ep_left.qc.length if ep_left.qc else 0.0
         len_right = ep_right.qc.length if ep_right.qc else 0.0
+        self._record_swap_waiting(
+            ep_left=ep_left,
+            ep_right=ep_right,
+            req=req,
+        )
         self.consume_EP(ep_left)
         self.consume_EP(ep_right)
 
