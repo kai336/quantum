@@ -44,6 +44,10 @@ class RunResult:
     finished: int
     avg_wait_per_request: float | None
     wait_times: List[int]
+    psw_purify_attempts: int
+    psw_purify_successes: int
+    psw_purify_fails: int
+    psw_cancelled: int
 
 
 @dataclass
@@ -52,6 +56,24 @@ class PSWSummary:
     avg_wait_per_request: float | None
     total_finished: int
     trial_count: int
+
+
+@dataclass
+class PSWStatsSummary:
+    enable_psw: bool
+    avg_wait_per_request: float | None
+    total_finished: int
+    trial_count: int
+    psw_purify_attempts: int
+    psw_purify_successes: int
+    psw_purify_fails: int
+    psw_cancelled: int
+
+    @property
+    def psw_purify_attempts_per_finished(self) -> float | None:
+        if self.total_finished <= 0:
+            return None
+        return self.psw_purify_attempts / self.total_finished
 
 
 def run_single(
@@ -128,6 +150,10 @@ def run_single(
     finished = len(controller_app.completed_requests)
     waits = [r["finish_time"] for r in controller_app.completed_requests]
     avg_wait = mean(waits) if waits else None
+    psw_attempts = getattr(controller_app, "psw_purify_scheduled", 0) if enable_psw else 0
+    psw_successes = getattr(controller_app, "psw_purify_success", 0) if enable_psw else 0
+    psw_fails = getattr(controller_app, "psw_purify_fail", 0) if enable_psw else 0
+    psw_cancelled = getattr(controller_app, "psw_cancelled", 0) if enable_psw else 0
 
     return RunResult(
         enable_psw=enable_psw,
@@ -135,6 +161,10 @@ def run_single(
         finished=finished,
         avg_wait_per_request=avg_wait,
         wait_times=waits,
+        psw_purify_attempts=psw_attempts,
+        psw_purify_successes=psw_successes,
+        psw_purify_fails=psw_fails,
+        psw_cancelled=psw_cancelled,
     )
 
 
@@ -213,6 +243,59 @@ def compare_psw_on_off(
                 avg_wait_per_request=avg_wait_per_request,
                 total_finished=total_finished,
                 trial_count=len(batch),
+            )
+        )
+    return summaries
+
+
+def compare_psw_on_off_stats(
+    *,
+    seeds: Iterable[int],
+    runs_per_seed: int,
+    nodes: int,
+    requests: int,
+    sim_time: float,
+    f_req: float,
+    p_swap: float,
+    init_fidelity: float,
+    verbose_sim: bool,
+    psw_threshold: Optional[float] = None,
+) -> List[PSWStatsSummary]:
+    """PSWのON/OFFで待ち時間とPSW発火回数なども含めて比較する。"""
+    summaries: List[PSWStatsSummary] = []
+    for enable_psw in (False, True):
+        batch = run_batch(
+            seeds=seeds,
+            runs_per_seed=runs_per_seed,
+            nodes=nodes,
+            requests=requests,
+            sim_time=sim_time,
+            f_req=f_req,
+            p_swap=p_swap,
+            init_fidelity=init_fidelity,
+            verbose_sim=verbose_sim,
+            enable_psw=enable_psw,
+            psw_threshold=psw_threshold,
+        )
+        total_finished = sum(r.finished for r in batch)
+        total_wait = sum(sum(r.wait_times) for r in batch)
+        avg_wait_per_request = (
+            total_wait / total_finished if total_finished > 0 else None
+        )
+        psw_attempts = sum(r.psw_purify_attempts for r in batch)
+        psw_successes = sum(r.psw_purify_successes for r in batch)
+        psw_fails = sum(r.psw_purify_fails for r in batch)
+        psw_cancelled = sum(r.psw_cancelled for r in batch)
+        summaries.append(
+            PSWStatsSummary(
+                enable_psw=enable_psw,
+                avg_wait_per_request=avg_wait_per_request,
+                total_finished=total_finished,
+                trial_count=len(batch),
+                psw_purify_attempts=psw_attempts,
+                psw_purify_successes=psw_successes,
+                psw_purify_fails=psw_fails,
+                psw_cancelled=psw_cancelled,
             )
         )
     return summaries

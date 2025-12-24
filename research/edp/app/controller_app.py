@@ -76,6 +76,12 @@ class ControllerApp(Application):
         # PSW用にアドホックなオペレーションを管理
         self.psw_ops: List[Operation] = []
         self.psw_op_target: Dict[Operation, Operation] = {}
+        # PSWの統計
+        self.psw_gen_link_scheduled: int = 0
+        self.psw_purify_scheduled: int = 0
+        self.psw_purify_success: int = 0
+        self.psw_purify_fail: int = 0
+        self.psw_cancelled: int = 0
         # swap待機時間の集計用
         self.swap_wait_times: List[int] = []
         self.swap_wait_times_by_req: Dict[str, List[int]] = {}
@@ -526,6 +532,7 @@ class ControllerApp(Application):
         )
         self.psw_ops.append(op)
         self.psw_op_target[op] = target_op
+        self.psw_gen_link_scheduled += 1
 
     def _on_psw_sacrificial_ready(
         self, sacrificial_op: Operation, target_op: Operation
@@ -539,6 +546,7 @@ class ControllerApp(Application):
         ):
             if sacrificial_ep is not None:
                 self.consume_EP(sacrificial_ep)
+            self.psw_cancelled += 1
             return
         name = f"PSW_PURIFY({target_op.n1.name}-{target_op.n2.name})"
         purify_op = Operation(
@@ -553,6 +561,7 @@ class ControllerApp(Application):
         )
         self.psw_ops.append(purify_op)
         self.psw_op_target[purify_op] = target_op
+        self.psw_purify_scheduled += 1
 
     def _advance_psw_ops(self):
         if not self.psw_ops:
@@ -564,6 +573,7 @@ class ControllerApp(Application):
                 if op.ep is not None and op.ep.owner_op is op:
                     self.consume_EP(op.ep)
                 self._cleanup_psw_op(op)
+                self.psw_cancelled += 1
                 continue
             if op.status == OpStatus.READY:
                 req = target.request if target is not None else None
@@ -605,6 +615,7 @@ class ControllerApp(Application):
                     target.threshold_purified = True
                     target.request_regen()
                 self._cleanup_psw_op(op)
+                self.psw_cancelled += 1
             op.request_regen()
             return
 
@@ -613,6 +624,7 @@ class ControllerApp(Application):
             log.logger.debug(f"{self._simulator.tc} purify success")
             ep_target.fidelity = new_fid  # fidelity更新
             if op in self.psw_op_target:
+                self.psw_purify_success += 1
                 target = self.psw_op_target.get(op)
                 if target is not None:
                     if ep_target.owner_op is op:
@@ -630,6 +642,7 @@ class ControllerApp(Application):
             log.logger.debug(f"{self._simulator.tc} purify failed")
             self.consume_EP(ep_target)
             if op in self.psw_op_target:
+                self.psw_purify_fail += 1
                 target = self.psw_op_target.get(op)
                 if target is not None:
                     target.threshold_purified = True
