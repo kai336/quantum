@@ -16,6 +16,7 @@ from qns.network.topology import WaxmanTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
+from exp.run_dir import resolve_run_dir, write_config_md
 
 
 @dataclass
@@ -73,6 +74,18 @@ def parse_args() -> argparse.Namespace:
         "--verbose-sim",
         action="store_true",
         help="シミュレーション中の標準出力を抑制しない",
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_fidelity_sweep",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
     )
     return parser.parse_args()
 
@@ -199,6 +212,25 @@ def main() -> None:
     args = parse_args()
     log.logger.setLevel(getattr(logging, args.log_level.upper()))
 
+    run_dir = resolve_run_dir("fidelity_sweep", args.run_dir, args.run_date)
+    out_csv = run_dir / "fidelity_sweep.csv"
+    write_config_md(
+        run_dir,
+        "fidelity_sweep",
+        {
+            "t_mem": "N/A",
+            "p_swap": args.p_swap_values,
+            "psw_threshold": "N/A",
+            "init_fidelity": args.init_fidelities,
+            "requests": args.requests,
+            "nodes": args.nodes,
+            "seed": args.seed,
+            "sim_time": args.sim_time,
+            "f_req": args.f_req,
+        },
+        ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes"),
+    )
+
     results = sweep(
         init_fidelities=args.init_fidelities,
         p_swap_values=args.p_swap_values,
@@ -210,23 +242,25 @@ def main() -> None:
         verbose_sim=args.verbose_sim,
     )
 
-    print(
-        "p_swap,init_fidelity,finished,completion_rate,"
-        "avg_fidelity,min_fidelity,max_fidelity,"
-        "avg_finish_slot,throughput(/timeslot)"
-    )
-    for r in results:
-        avg_finish_slot = (
-            "" if r.avg_finish_slot is None else f"{r.avg_finish_slot:.2f}"
+    with out_csv.open("w", encoding="utf-8") as f:
+        f.write(
+            "p_swap,init_fidelity,finished,completion_rate,"
+            "avg_fidelity,min_fidelity,max_fidelity,"
+            "avg_finish_slot,throughput(/timeslot)\n"
         )
-        avg_fid = "" if r.avg_fidelity is None else f"{r.avg_fidelity:.6f}"
-        min_fid = "" if r.min_fidelity is None else f"{r.min_fidelity:.6f}"
-        max_fid = "" if r.max_fidelity is None else f"{r.max_fidelity:.6f}"
-        print(
-            f"{r.p_swap:.3f},{r.init_fidelity:.3f},{r.finished},"
-            f"{r.completion_rate:.3f},{avg_fid},{min_fid},{max_fid},"
-            f"{avg_finish_slot},{r.throughput:.6f}"
-        )
+        for r in results:
+            avg_finish_slot = (
+                "" if r.avg_finish_slot is None else f"{r.avg_finish_slot:.2f}"
+            )
+            avg_fid = "" if r.avg_fidelity is None else f"{r.avg_fidelity:.6f}"
+            min_fid = "" if r.min_fidelity is None else f"{r.min_fidelity:.6f}"
+            max_fid = "" if r.max_fidelity is None else f"{r.max_fidelity:.6f}"
+            f.write(
+                f"{r.p_swap:.3f},{r.init_fidelity:.3f},{r.finished},"
+                f"{r.completion_rate:.3f},{avg_fid},{min_fid},{max_fid},"
+                f"{avg_finish_slot},{r.throughput:.6f}\n"
+            )
+    print(f"Wrote: {out_csv}")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import logging
 import os
@@ -23,6 +24,7 @@ from qns.network.topology import WaxmanTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
+from exp.run_dir import resolve_run_dir, write_config_md
 
 # 実験パラメータ（適宜変更可）
 NODES = 50
@@ -35,8 +37,9 @@ RUNS_PER_SEED = 2
 VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 P_SWAP_VALUES = [0.2, 0.3, 0.4, 0.5, 0.6]
-OUTPUT_CSV = os.path.join("data", "psw_compare.csv")
-OUTPUT_FIG = os.path.join("data", "psw_compare.png")
+OUTPUT_CSV_NAME = "psw_compare.csv"
+OUTPUT_FIG_NAME = "psw_compare.png"
+REQUIRED_PARAMS = ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes")
 
 
 @dataclass
@@ -267,7 +270,41 @@ def plot(
 
 def main() -> None:
     log.logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
-    os.makedirs("data", exist_ok=True)
+    parser = argparse.ArgumentParser(description="PSW on/off compare sweep")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_psw_compare",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
+    )
+    args = parser.parse_args()
+
+    run_dir = resolve_run_dir("psw_compare", args.run_dir, args.run_date)
+    output_csv = os.path.join(run_dir, OUTPUT_CSV_NAME)
+    output_fig = os.path.join(run_dir, OUTPUT_FIG_NAME)
+    write_config_md(
+        Path(run_dir),
+        "psw_compare",
+        {
+            "t_mem": "N/A",
+            "p_swap": P_SWAP_VALUES,
+            "psw_threshold": "N/A",
+            "init_fidelity": INIT_FIDELITY,
+            "requests": REQUESTS,
+            "nodes": NODES,
+            "seeds": SEEDS,
+            "runs_per_seed": RUNS_PER_SEED,
+            "sim_time": SIM_TIME,
+            "f_req": F_REQ,
+        },
+        REQUIRED_PARAMS,
+    )
 
     print("Running sweep with PSW enabled")
     summaries_on = sweep(
@@ -298,12 +335,12 @@ def main() -> None:
 
     # CSV保存
     all_rows = summaries_on + summaries_off
-    write_csv(OUTPUT_CSV, all_rows)
-    print(f"CSVを書き出しました: {OUTPUT_CSV}")
+    write_csv(output_csv, all_rows)
+    print(f"CSVを書き出しました: {output_csv}")
 
     # プロット
-    plot(summaries_on, summaries_off, OUTPUT_FIG)
-    print(f"グラフを保存しました: {OUTPUT_FIG}")
+    plot(summaries_on, summaries_off, output_fig)
+    print(f"グラフを保存しました: {output_fig}")
 
 
 if __name__ == "__main__":

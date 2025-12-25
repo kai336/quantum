@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import logging
 import os
@@ -21,6 +22,7 @@ from qns.network.topology import WaxmanTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
+from run_dir import resolve_run_dir, write_config_md
 
 # ------------------------------------------------------------
 # バッチ実験用の固定パラメタ（必要に応じてここを書き換え）
@@ -34,6 +36,9 @@ SEEDS: List[int] = list(range(10))
 RUNS_PER_SEED = 5
 VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
+PSW_THRESHOLD = 0.9
+OUTPUT_CSV_NAME = "swap_waiting.csv"
+REQUIRED_PARAMS = ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes")
 
 
 @dataclass
@@ -269,6 +274,42 @@ def write_csv_stream(output: TextIO, summaries: Iterable[SweepSummary]) -> None:
 
 def main() -> None:
     logging.shutdown
+    parser = argparse.ArgumentParser(description="Swap waiting time sweep experiment")
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_swap_waiting",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
+    )
+    args = parser.parse_args()
+
+    run_dir = resolve_run_dir("swap_waiting", args.run_dir, args.run_date)
+    out_csv = run_dir / OUTPUT_CSV_NAME
+
+    write_config_md(
+        run_dir,
+        "swap_waiting",
+        {
+            "t_mem": "N/A",
+            "p_swap": [round(0.2 + 0.1 * i, 1) for i in range(5)],
+            "psw_threshold": PSW_THRESHOLD,
+            "init_fidelity": INIT_FIDELITY,
+            "requests": REQUESTS,
+            "nodes": NODES,
+            "seeds": SEEDS,
+            "runs_per_seed": RUNS_PER_SEED,
+            "sim_time": SIM_TIME,
+            "f_req": F_REQ,
+        },
+        REQUIRED_PARAMS,
+    )
+
     p_swap_values = [round(0.2 + 0.1 * i, 1) for i in range(5)]
     summaries = sweep_p_swap(
         p_swap_values=p_swap_values,
@@ -281,9 +322,11 @@ def main() -> None:
         init_fidelity=INIT_FIDELITY,
         verbose_sim=VERBOSE_SIM,
         enable_psw=True,
-        psw_threshold=0.9,
+        psw_threshold=PSW_THRESHOLD,
     )
-    write_csv_stream(sys.stdout, summaries)
+    with out_csv.open("w", encoding="utf-8") as f:
+        write_csv_stream(f, summaries)
+    print(f"Wrote: {out_csv}")
 
 
 if __name__ == "__main__":

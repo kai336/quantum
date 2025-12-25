@@ -1,0 +1,21 @@
+2025-12-25 19:23:33,291 INFO Run config: t_mem_values=10.0,1.0,0.1,0.01
+2025-12-25 19:23:33,291 INFO Run config: seeds=0,1 runs_per_seed=2 sim_time=500000 nodes=50 requests=5
+2025-12-25 19:23:33,291 INFO Run config: p_swap=0.2 psw_threshold=0.95 init_fidelity=0.99 f_req=0.8 verbose_sim=False
+2025-12-25 19:23:33,291 INFO Run config: out_long=/home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_long.csv out_wide=/home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_wide.csv log=/home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep.log append=False log_level=INFO
+2025-12-25 19:23:33,292 INFO Start scenario: t_mem=10 (seeds=0,1, runs_per_seed=2, sim_time=500000, nodes=50, requests=5)
+2025-12-25 19:23:36,033 INFO Finish scenario: t_mem=10 rows_long=2 elapsed_sec=2.74
+2025-12-25 19:23:36,033 INFO Summary psw_off t_mem=10 avg_wait=118.90 total_finished=20 trial_count=4 psw_attempts=0 successes=0 fails=0 cancelled=0 attempts_per_finished=0.00
+2025-12-25 19:23:36,033 INFO Summary psw_on t_mem=10 avg_wait=118.90 total_finished=20 trial_count=4 psw_attempts=0 successes=0 fails=0 cancelled=0 attempts_per_finished=0.00
+2025-12-25 19:23:36,033 INFO Delta t_mem=10 avg_wait_delta=0.00 avg_wait_ratio_on_over_off=1.00
+2025-12-25 19:23:36,034 INFO Wrote long CSV header and 2 rows: /home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_long.csv
+2025-12-25 19:23:36,034 INFO Wrote wide CSV header and 1 row: /home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_wide.csv
+2025-12-25 19:23:36,034 INFO t_mem=10 off(avg=118.9, fin=20) on(avg=118.9, fin=20, psw_attempts=0, cancelled=0)
+2025-12-25 19:23:36,034 INFO Start scenario: t_mem=1 (seeds=0,1, runs_per_seed=2, sim_time=500000, nodes=50, requests=5)
+2025-12-25 19:23:38,744 INFO Finish scenario: t_mem=1 rows_long=2 elapsed_sec=2.71
+2025-12-25 19:23:38,745 INFO Summary psw_off t_mem=1 avg_wait=118.90 total_finished=20 trial_count=4 psw_attempts=0 successes=0 fails=0 cancelled=0 attempts_per_finished=0.00
+2025-12-25 19:23:38,745 INFO Summary psw_on t_mem=1 avg_wait=118.90 total_finished=20 trial_count=4 psw_attempts=0 successes=0 fails=0 cancelled=1 attempts_per_finished=0.00
+2025-12-25 19:23:38,745 INFO Delta t_mem=1 avg_wait_delta=0.00 avg_wait_ratio_on_over_off=1.00
+2025-12-25 19:23:38,745 INFO Appended 2 rows to long CSV: /home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_long.csv
+2025-12-25 19:23:38,745 INFO Appended 1 row to wide CSV: /home/kai/quantum/research/data/20251225_psw_tmem_sweep/psw_tmem_sweep_wide.csv
+2025-12-25 19:23:38,745 INFO t_mem=1 off(avg=118.9, fin=20) on(avg=118.9, fin=20, psw_attempts=0, cancelled=1)
+2025-12-25 19:23:38,745 INFO Start scenario: t_mem=0.1 (seeds=0,1, runs_per_seed=2, sim_time=500000, nodes=50, requests=5)

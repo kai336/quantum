@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import logging
 import os
@@ -23,6 +24,7 @@ from qns.network.topology import WaxmanTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
+from exp.run_dir import resolve_run_dir, write_config_md
 
 # 実験パラメータ
 NODES = 50
@@ -37,8 +39,9 @@ VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 P_SWAP = 0.4
 GEN_RATE_VALUES = list(range(10, 55, 5))
-OUTPUT_CSV = os.path.join("data", "psw_compare_gen_rate.csv")
-OUTPUT_FIG = os.path.join("data", "psw_compare_gen_rate.png")
+OUTPUT_CSV_NAME = "psw_compare_gen_rate.csv"
+OUTPUT_FIG_NAME = "psw_compare_gen_rate.png"
+REQUIRED_PARAMS = ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes")
 
 
 @dataclass
@@ -298,7 +301,43 @@ def plot(
 
 def main() -> None:
     log.logger.setLevel(getattr(logging, LOG_LEVEL.upper()))
-    os.makedirs("data", exist_ok=True)
+    parser = argparse.ArgumentParser(description="PSW on/off compare gen_rate sweep")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_psw_compare_gen_rate",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
+    )
+    args = parser.parse_args()
+
+    run_dir = resolve_run_dir("psw_compare_gen_rate", args.run_dir, args.run_date)
+    output_csv = os.path.join(run_dir, OUTPUT_CSV_NAME)
+    output_fig = os.path.join(run_dir, OUTPUT_FIG_NAME)
+    write_config_md(
+        Path(run_dir),
+        "psw_compare_gen_rate",
+        {
+            "t_mem": "N/A",
+            "p_swap": P_SWAP,
+            "psw_threshold": "N/A",
+            "init_fidelity": INIT_FIDELITY,
+            "requests": REQUESTS,
+            "nodes": NODES,
+            "seeds": SEEDS,
+            "topology_seeds": TOPOLOGY_SEEDS,
+            "runs_per_seed": RUNS_PER_SEED,
+            "sim_time": SIM_TIME,
+            "f_req": F_REQ,
+            "gen_rate_values": GEN_RATE_VALUES,
+        },
+        REQUIRED_PARAMS,
+    )
 
     print("PSWありのgen_rateスイープを実行します")
     summaries_on = sweep(
@@ -333,12 +372,12 @@ def main() -> None:
 
     # CSV保存
     all_rows = summaries_on + summaries_off
-    write_csv(OUTPUT_CSV, all_rows)
-    print(f"CSVを書き出しました: {OUTPUT_CSV}")
+    write_csv(output_csv, all_rows)
+    print(f"CSVを書き出しました: {output_csv}")
 
     # プロット
-    plot(summaries_on, summaries_off, OUTPUT_FIG)
-    print(f"グラフを保存しました: {OUTPUT_FIG}")
+    plot(summaries_on, summaries_off, output_fig)
+    print(f"グラフを保存しました: {output_fig}")
 
 
 if __name__ == "__main__":

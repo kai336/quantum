@@ -1,3 +1,4 @@
+import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,11 +8,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from exp.run_dir import find_latest_run_dir
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT / "data" / "psw_tmem_sweep_long.csv"
-OUT_WAIT = ROOT / "data" / "psw_tmem_sweep_wait.png"
-OUT_RATE = ROOT / "data" / "psw_tmem_sweep_psw_rate.png"
+DATA_NAME = "psw_tmem_sweep_long.csv"
+OUT_WAIT_NAME = "psw_tmem_sweep_wait.png"
+OUT_RATE_NAME = "psw_tmem_sweep_psw_rate.png"
 
 
 @dataclass(frozen=True)
@@ -101,13 +103,27 @@ def plot_psw_rate(rows: list[Row], out_path: Path) -> None:
 
 
 def main() -> None:
-    rows = load_rows(DATA_PATH)
-    plot_wait(rows, OUT_WAIT)
-    plot_psw_rate(rows, OUT_RATE)
-    print(f"Saved: {OUT_WAIT}")
-    print(f"Saved: {OUT_RATE}")
+    parser = argparse.ArgumentParser(description="Plot PSW T_MEM sweep results")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Run directory containing psw_tmem_sweep_long.csv",
+    )
+    args = parser.parse_args()
+
+    run_dir = Path(args.run_dir) if args.run_dir else find_latest_run_dir("psw_tmem_sweep")
+    if run_dir is None:
+        raise SystemExit("run_dir is not set and no matching run directory was found")
+    data_path = run_dir / DATA_NAME
+    out_wait = run_dir / OUT_WAIT_NAME
+    out_rate = run_dir / OUT_RATE_NAME
+    rows = load_rows(data_path)
+    plot_wait(rows, out_wait)
+    plot_psw_rate(rows, out_rate)
+    print(f"Saved: {out_wait}")
+    print(f"Saved: {out_rate}")
 
 
 if __name__ == "__main__":
     main()
-

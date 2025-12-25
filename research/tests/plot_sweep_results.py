@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import os
 import sys
@@ -11,6 +12,7 @@ if str(ROOT) not in sys.path:
 import matplotlib.pyplot as plt
 
 from throughput_sweep import SweepResult, run_single
+from exp.run_dir import resolve_run_dir, write_config_md
 
 
 def run_silent(params: dict) -> SweepResult:
@@ -64,7 +66,47 @@ def plot_curve(
     plt.close()
 
 
+def write_csv(xs: List[float], ys: List[float], path: str) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("x,y\n")
+        for x, y in zip(xs, ys):
+            f.write(f"{x},{y}\n")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Plot throughput sweep results")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_plot_sweep_results",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
+    )
+    args = parser.parse_args()
+
+    run_dir = resolve_run_dir("plot_sweep_results", args.run_dir, args.run_date)
+    write_config_md(
+        Path(run_dir),
+        "plot_sweep_results",
+        {
+            "t_mem": "N/A",
+            "p_swap": [0.2, 0.3, 0.4, 0.5, 0.6],
+            "psw_threshold": "N/A",
+            "init_fidelity": [0.8, 0.85, 0.9, 0.95],
+            "requests": 5,
+            "nodes": 50,
+            "seed": 42,
+            "sim_time": 10_000,
+            "f_req": 0.8,
+        },
+        ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes"),
+    )
+
     common_params = {
         "nodes": 50,
         "requests": 5,
@@ -72,7 +114,6 @@ def main():
         "sim_time": 10_000,
         "f_req": 0.8,
     }
-    os.makedirs("data", exist_ok=True)
 
     # 1) init_fidelity=0.9固定、p_swapを変化
     p_values = [0.2, 0.3, 0.4, 0.5, 0.6]
@@ -85,7 +126,12 @@ def main():
         ys=throughput_p,
         xlabel="p_swap",
         title="Throughput at init_fidelity=0.9",
-        outfile=os.path.join("data", "throughput_vs_p_swap.png"),
+        outfile=os.path.join(run_dir, "throughput_vs_p_swap.png"),
+    )
+    write_csv(
+        p_values,
+        throughput_p,
+        os.path.join(run_dir, "throughput_vs_p_swap.csv"),
     )
 
     # 2) p_swap=0.4固定、init_fidelityを変化
@@ -99,7 +145,12 @@ def main():
         ys=throughput_fid,
         xlabel="init_fidelity",
         title="Throughput at p_swap=0.4",
-        outfile=os.path.join("data", "throughput_vs_init_fidelity.png"),
+        outfile=os.path.join(run_dir, "throughput_vs_init_fidelity.png"),
+    )
+    write_csv(
+        fidelities,
+        throughput_fid,
+        os.path.join(run_dir, "throughput_vs_init_fidelity.csv"),
     )
 
     print("==== init_fidelity=0.9 固定、p_swap掃引 ====")

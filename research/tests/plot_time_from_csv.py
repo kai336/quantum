@@ -1,7 +1,16 @@
+import argparse
 import csv
+import sys
+from pathlib import Path
 from typing import List, TypedDict
 
 import matplotlib.pyplot as plt
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from exp.run_dir import find_latest_run_dir
 
 
 class Row(TypedDict):
@@ -48,12 +57,24 @@ def plot(rows: List[Row], output: str) -> None:
 
 
 def main() -> None:
-    csv_path = "data/p_swap_throughput_sweep.csv"
-    output_path = "data/avg_request_time_vs_p_swap.png"
-    rows = load_rows(csv_path)
+    parser = argparse.ArgumentParser(description="Plot average request time vs p_swap")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Run directory containing p_swap_sweep.csv",
+    )
+    args = parser.parse_args()
+
+    run_dir = Path(args.run_dir) if args.run_dir else find_latest_run_dir("p_swap_sweep")
+    if run_dir is None:
+        raise SystemExit("run_dir is not set and no matching run directory was found")
+    csv_path = run_dir / "p_swap_sweep.csv"
+    output_path = run_dir / "avg_request_time_vs_p_swap.png"
+    rows = load_rows(str(csv_path))
     if not rows:
         raise SystemExit(f"CSV is empty: {csv_path}")
-    plot(rows, output_path)
+    plot(rows, str(output_path))
     print(f"Saved plot: {output_path}")
 
 

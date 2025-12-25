@@ -1,4 +1,4 @@
-import csv
+import argparse
 import logging
 import sys
 from dataclasses import dataclass
@@ -14,7 +14,9 @@ if str(EXP_DIR) not in sys.path:
 
 from edp.sim import models
 
-from psw_request_waiting_exp import PSWStatsSummary, compare_psw_on_off_stats
+from psw_experiment_utils import summarize_psw_stats, write_csv
+from psw_request_waiting_exp import compare_psw_on_off_stats
+from run_dir import resolve_run_dir, write_config_md
 
 # ------------------------------------------------------------
 # しきい値×p_swapのスイープ（必要に応じてここを書き換え）
@@ -33,8 +35,9 @@ LOG_LEVEL = "INFO"
 P_SWAP_VALUES = [0.1, 0.2, 0.3]
 PSW_THRESHOLDS = [0.9, 0.995]
 
-OUTPUT_LONG_CSV = ROOT / "data" / "psw_threshold_sweep_long.csv"
-OUTPUT_WIDE_CSV = ROOT / "data" / "psw_threshold_sweep_wide.csv"
+OUTPUT_LONG_NAME = "psw_threshold_sweep_long.csv"
+OUTPUT_WIDE_NAME = "psw_threshold_sweep_wide.csv"
+REQUIRED_PARAMS = ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes")
 
 
 @dataclass(frozen=True)
@@ -55,88 +58,13 @@ def iter_scenarios(
             yield Scenario(t_mem=t_mem, psw_threshold=threshold, p_swap=p_swap)
 
 
-def _to_float_str(v: Optional[float]) -> str:
-    return "" if v is None else f"{v:.6g}"
-
-
-def write_long_csv(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        raise ValueError("no rows to write")
-    with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        w.writeheader()
-        w.writerows(rows)
-
-
-def write_wide_csv(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not rows:
-        raise ValueError("no rows to write")
-    with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        w.writeheader()
-        w.writerows(rows)
-
-
-def summarize_to_rows(
-    scenario: Scenario, summaries: list[PSWStatsSummary]
-) -> tuple[list[dict], dict]:
-    long_rows: list[dict] = []
-    wide_row: dict = {
+def summarize_to_rows(scenario: Scenario, summaries: list) -> tuple[list[dict], dict]:
+    base_fields = {
         "t_mem": scenario.t_mem,
         "psw_threshold": scenario.psw_threshold,
         "p_swap": scenario.p_swap,
     }
-
-    for s in summaries:
-        mode = "psw_on" if s.enable_psw else "psw_off"
-        long_rows.append(
-            {
-                "t_mem": scenario.t_mem,
-                "psw_threshold": scenario.psw_threshold,
-                "p_swap": scenario.p_swap,
-                "mode": mode,
-                "avg_wait_per_request_slot": _to_float_str(s.avg_wait_per_request),
-                "total_finished": s.total_finished,
-                "trial_count": s.trial_count,
-                "psw_purify_attempts": s.psw_purify_attempts,
-                "psw_purify_successes": s.psw_purify_successes,
-                "psw_purify_fails": s.psw_purify_fails,
-                "psw_cancelled": s.psw_cancelled,
-                "psw_purify_attempts_per_finished": _to_float_str(
-                    s.psw_purify_attempts_per_finished
-                ),
-            }
-        )
-
-        prefix = "on" if s.enable_psw else "off"
-        wide_row[f"avg_wait_{prefix}_slot"] = _to_float_str(s.avg_wait_per_request)
-        wide_row[f"total_finished_{prefix}"] = s.total_finished
-        wide_row[f"trial_count_{prefix}"] = s.trial_count
-        wide_row[f"psw_purify_attempts_{prefix}"] = s.psw_purify_attempts
-        wide_row[f"psw_purify_successes_{prefix}"] = s.psw_purify_successes
-        wide_row[f"psw_purify_fails_{prefix}"] = s.psw_purify_fails
-        wide_row[f"psw_cancelled_{prefix}"] = s.psw_cancelled
-        wide_row[f"psw_purify_attempts_per_finished_{prefix}"] = _to_float_str(
-            s.psw_purify_attempts_per_finished
-        )
-
-    avg_off = None
-    avg_on = None
-    for s in summaries:
-        if s.enable_psw:
-            avg_on = s.avg_wait_per_request
-        else:
-            avg_off = s.avg_wait_per_request
-    if avg_off is not None and avg_on is not None:
-        wide_row["avg_wait_delta_slot"] = _to_float_str(avg_on - avg_off)
-        wide_row["avg_wait_ratio_on_over_off"] = _to_float_str(avg_on / avg_off)
-    else:
-        wide_row["avg_wait_delta_slot"] = ""
-        wide_row["avg_wait_ratio_on_over_off"] = ""
-
-    return long_rows, wide_row
+    return summarize_psw_stats(summaries, base_fields)
 
 
 def main() -> None:
@@ -144,6 +72,44 @@ def main() -> None:
     logging.basicConfig(level=getattr(logging, LOG_LEVEL.upper()))
 
     models.T_MEM = T_MEM
+    parser = argparse.ArgumentParser(
+        description="Sweep psw_threshold and p_swap with fixed T_MEM"
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_psw_threshold_sweep",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
+    )
+    args = parser.parse_args()
+
+    run_dir = resolve_run_dir("psw_threshold_sweep", args.run_dir, args.run_date)
+    out_long = run_dir / OUTPUT_LONG_NAME
+    out_wide = run_dir / OUTPUT_WIDE_NAME
+
+    write_config_md(
+        run_dir,
+        "psw_threshold_sweep",
+        {
+            "t_mem": T_MEM,
+            "p_swap": P_SWAP_VALUES,
+            "psw_threshold": PSW_THRESHOLDS,
+            "init_fidelity": INIT_FIDELITY,
+            "requests": REQUESTS,
+            "nodes": NODES,
+            "seeds": SEEDS,
+            "runs_per_seed": RUNS_PER_SEED,
+            "sim_time": SIM_TIME,
+            "f_req": F_REQ,
+        },
+        REQUIRED_PARAMS,
+    )
 
     all_long_rows: list[dict] = []
     all_wide_rows: list[dict] = []
@@ -180,10 +146,10 @@ def main() -> None:
             f"psw_attempts={on.psw_purify_attempts}, cancelled={on.psw_cancelled})"
         )
 
-    write_long_csv(OUTPUT_LONG_CSV, all_long_rows)
-    write_wide_csv(OUTPUT_WIDE_CSV, all_wide_rows)
-    print(f"Wrote: {OUTPUT_LONG_CSV}")
-    print(f"Wrote: {OUTPUT_WIDE_CSV}")
+    write_csv(out_long, all_long_rows)
+    write_csv(out_wide, all_wide_rows)
+    print(f"Wrote: {out_long}")
+    print(f"Wrote: {out_wide}")
 
 
 if __name__ == "__main__":

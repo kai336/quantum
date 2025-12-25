@@ -1,8 +1,8 @@
 # PSW関連実験メモ
 
 ## 既存データの確認
-- `tests/pumping_compare.py`のp_swapスイープ結果 (`data/psw_compare.csv` / `data/psw_compare.png`) を確認。p_swap=0.2–0.6でPSW on/offの平均完了時間が全て一致。
-- `data/swap_waiting_results.csv`より、swap待機はp_swap=0.2–0.6で平均8–27 slot程度。
+- `tests/pumping_compare.py`のp_swapスイープ結果 (`data/YYYYMMDD_psw_compare/psw_compare.csv` / `data/YYYYMMDD_psw_compare/psw_compare.png`) を確認。p_swap=0.2–0.6でPSW on/offの平均完了時間が全て一致。
+- `data/YYYYMMDD_swap_waiting/swap_waiting.csv`より、swap待機はp_swap=0.2–0.6で平均8–27 slot程度。
 
 ## 追加で実施したコマンドと結果
 - 基本条件でPSW有無を再確認  
@@ -47,7 +47,7 @@
 ## 追加試行: 閾値を高めてPSWを強制
 - タイムスロットは1/3000 sなので、待機が数十slotの場合はT_MEM=0.01でもフィデリティ劣化が小さく、psw_threshold=0.9ではPSWがほぼ発動しない。一方、T_MEMを極端に縮めるとイベント数が爆発し120sタイムアウトになるケースが多かった。
 - 対策としてpsw_thresholdを初期フィデリティ(0.99)より高め(0.995)に設定し、swap待機が発生したら必ずPSWを走らせる条件で比較。
-- 実行コマンド（`data/psw_threshold_force.csv`に保存）:
+- 実行コマンド（出力は `data/YYYYMMDD_psw_threshold_force/` を想定）:
   ```bash
   UV_CACHE_DIR=./.uv_cache uv run --project .. --offline --no-sync --python /home/kai/quantum/.venv/bin/python - <<'PY'
   from exp.psw_request_waiting_exp import compare_psw_on_off
@@ -81,11 +81,11 @@
 
 ## 追加試行: しきい値×p_swapスイープ + PSW発火回数の可視化
 - `ControllerApp`にPSWの統計カウンタ（purify試行/成功/失敗/キャンセル）を追加し、PSWが本当に動いているかを数値で追えるようにした。
-- 実行（`data/psw_threshold_sweep_long.csv` / `data/psw_threshold_sweep_wide.csv`に保存）:
+- 実行（`data/YYYYMMDD_psw_threshold_sweep/psw_threshold_sweep_long.csv` / `data/YYYYMMDD_psw_threshold_sweep/psw_threshold_sweep_wide.csv`に保存）:
   ```bash
   UV_CACHE_DIR=./.uv_cache uv run --project .. --offline --no-sync --python /home/kai/quantum/.venv/bin/python exp/psw_threshold_sweep_exp.py
   ```
-- 可視化（英語ラベルPNGを`data/`へ出力）:
+- 可視化（英語ラベルPNGを同じ実験フォルダへ出力）:
   ```bash
   UV_CACHE_DIR=./.uv_cache uv run --project .. --offline --no-sync --python /home/kai/quantum/.venv/bin/python visualize/plot_psw_threshold_sweep.py
   ```
@@ -101,10 +101,10 @@
   UV_CACHE_DIR=./.uv_cache uv run --project .. --offline --no-sync --python /home/kai/quantum/.venv/bin/python exp/psw_tmem_sweep_exp.py --append --t-mem 0.1 --seeds 0 --runs-per-seed 1 --sim-time 200000 --scenario-timeout-sec 900
   ```
 - 現在の結果（デフォルト条件、15分タイムアウト）:
-  - 完了: T_MEM = 1000, 10, 1 → `data/psw_tmem_sweep_long.csv` / `data/psw_tmem_sweep_wide.csv`
+  - 完了: T_MEM = 1000, 10, 1 → `data/YYYYMMDD_psw_tmem_sweep/psw_tmem_sweep_long.csv` / `data/YYYYMMDD_psw_tmem_sweep/psw_tmem_sweep_wide.csv`
   - タイムアウト: T_MEM = 0.1, 0.02, 0.01（15分で打ち切り。条件を軽くして追記可）
 - 可視化:
   ```bash
   UV_CACHE_DIR=./.uv_cache uv run --project .. --offline --no-sync --python /home/kai/quantum/.venv/bin/python visualize/plot_psw_tmem_sweep.py
-  # 出力: data/psw_tmem_sweep_wait.png, data/psw_tmem_sweep_psw_rate.png
+  # 出力: data/YYYYMMDD_psw_tmem_sweep/psw_tmem_sweep_wait.png, data/YYYYMMDD_psw_tmem_sweep/psw_tmem_sweep_psw_rate.png
   ```

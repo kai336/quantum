@@ -25,6 +25,7 @@ from qns.network.topology import WaxmanTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
+from exp.run_dir import resolve_run_dir, write_config_md
 
 
 @dataclass
@@ -97,8 +98,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=str,
-        default="data/final_fidelity_summary.csv",
-        help="結果を書き出すCSVパス",
+        default=None,
+        help="結果を書き出すCSVパス (未指定ならrun-dir配下)",
     )
     parser.add_argument(
         "--plot",
@@ -108,8 +109,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--plot-path",
         type=str,
-        default="data/final_fidelity_heatmap.png",
-        help="ヒートマップの出力先",
+        default=None,
+        help="ヒートマップの出力先 (未指定ならrun-dir配下)",
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Output directory for this run. Default: data/YYYYMMDD_fidelity_metric",
+    )
+    parser.add_argument(
+        "--run-date",
+        type=str,
+        default=None,
+        help="Run date tag (YYYYMMDD). Default: today.",
     )
     return parser.parse_args()
 
@@ -384,6 +397,27 @@ def main() -> None:
     args = parse_args()
     log.logger.setLevel(getattr(logging, args.log_level.upper()))
 
+    run_dir = resolve_run_dir("fidelity_metric", args.run_dir, args.run_date)
+    output_path = args.output or os.path.join(run_dir, "final_fidelity_summary.csv")
+    plot_path = args.plot_path or os.path.join(run_dir, "final_fidelity_heatmap.png")
+    write_config_md(
+        Path(run_dir),
+        "fidelity_metric",
+        {
+            "t_mem": "N/A",
+            "p_swap": args.p_swap_values,
+            "psw_threshold": "N/A",
+            "init_fidelity": args.init_fidelities,
+            "requests": args.requests,
+            "nodes": args.nodes,
+            "seeds": args.seeds,
+            "runs_per_seed": args.runs_per_seed,
+            "sim_time": args.sim_time,
+            "f_req": args.f_req,
+        },
+        ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes"),
+    )
+
     summaries = sweep_fidelity(
         p_swap_values=args.p_swap_values,
         init_fidelities=args.init_fidelities,
@@ -395,12 +429,12 @@ def main() -> None:
         f_req=args.f_req,
         verbose_sim=args.verbose_sim,
     )
-    write_csv(args.output, summaries)
+    write_csv(output_path, summaries)
 
     if args.plot:
         generate_heatmap(
             summaries=summaries,
-            output_path=args.plot_path,
+            output_path=plot_path,
         )
 
     print("=== 最終もつれ忠実度集計 ===")
@@ -411,9 +445,9 @@ def main() -> None:
             f"完了率={s.completion_rate:.3f} 完了数={s.total_finished} "
             f"平均忠実度={avg_f}"
         )
-    print(f"\nCSVを書き出しました: {args.output}")
+    print(f"\nCSVを書き出しました: {output_path}")
     if args.plot:
-        print(f"ヒートマップを書き出しました: {args.plot_path}")
+        print(f"ヒートマップを書き出しました: {plot_path}")
 
 
 if __name__ == "__main__":

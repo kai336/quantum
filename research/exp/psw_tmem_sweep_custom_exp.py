@@ -3,10 +3,9 @@ import concurrent.futures as futures
 import csv
 import logging
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -16,39 +15,33 @@ if str(EXP_DIR) not in sys.path:
     sys.path.insert(0, str(EXP_DIR))
 
 from edp.sim import models
+
 from psw_experiment_utils import summarize_psw_stats
 from psw_request_waiting_exp import PSWStatsSummary, compare_psw_on_off_stats
 from run_dir import resolve_run_dir, write_config_md
 
 # ------------------------------------------------------------
-# T_MEMスイープ（固定: p_swap=0.2, gen_rate=50, threshold=0.95）
+# T_MEMスイープ（固定: nodes=50, requests=5, init_fidelity=0.9, threshold=0.895）
 # ------------------------------------------------------------
-NODES = 30
-REQUESTS = 10
+NODES = 50
+REQUESTS = 5
 SIM_TIME = 500_000
 F_REQ = 0.8
-INIT_FIDELITY = 0.99
+INIT_FIDELITY = 0.9
 SEEDS = [0, 1]
 RUNS_PER_SEED = 2
 VERBOSE_SIM = False
 LOG_LEVEL = "INFO"
 
 P_SWAP = 0.2
-PSW_THRESHOLD = 0.95
+PSW_THRESHOLD = 0.895
 
-# デフォルトのT_MEMスイープ範囲（0.01–10を等間隔に5分割程度）
+# T_MEM範囲: 0.01–10（等間隔5点）
 T_MEM_VALUES = [0.01, 2.5, 5.0, 7.5, 10.0]
 
-OUTPUT_LONG_NAME = "psw_tmem_sweep_long.csv"
-OUTPUT_WIDE_NAME = "psw_tmem_sweep_wide.csv"
-REQUIRED_PARAMS = (
-    "t_mem",
-    "p_swap",
-    "psw_threshold",
-    "init_fidelity",
-    "requests",
-    "nodes",
-)
+OUTPUT_LONG_NAME = "psw_tmem_sweep_custom_long.csv"
+OUTPUT_WIDE_NAME = "psw_tmem_sweep_custom_wide.csv"
+REQUIRED_PARAMS = ("t_mem", "p_swap", "psw_threshold", "init_fidelity", "requests", "nodes")
 
 
 @dataclass(frozen=True)
@@ -92,7 +85,7 @@ def run_scenario(
     f_req: float,
     init_fidelity: float,
     verbose_sim: bool,
-) -> tuple[list[dict], dict, list[PSWStatsSummary]]:
+) -> tuple[list[dict], dict]:
     """1つのT_MEMシナリオを実行し、CSV用の行を返す。"""
     scenario = Scenario(t_mem=t_mem, psw_threshold=psw_threshold, p_swap=p_swap)
     models.T_MEM = t_mem
@@ -108,60 +101,15 @@ def run_scenario(
         verbose_sim=verbose_sim,
         psw_threshold=psw_threshold,
     )
-    long_rows, wide_row = summarize_to_rows(scenario, summaries)
-    return long_rows, wide_row, summaries
-
-
-def setup_logging(log_path: Path, *, level: str, append: bool) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handlers = [logging.StreamHandler(sys.stdout)]
-    file_handler = logging.FileHandler(
-        log_path, mode="a" if append else "w", encoding="utf-8"
-    )
-    handlers.append(file_handler)
-    logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format="%(asctime)s %(levelname)s %(message)s",
-        handlers=handlers,
-    )
-
-
-def _fmt_opt(v: Optional[float], *, digits: int = 2) -> str:
-    return "" if v is None else f"{v:.{digits}f}"
-
-
-def log_summaries(summaries: Iterable[PSWStatsSummary], *, t_mem: float) -> None:
-    for s in summaries:
-        mode = "psw_on" if s.enable_psw else "psw_off"
-        logging.info(
-            "Summary %s t_mem=%g avg_wait=%s total_finished=%d trial_count=%d "
-            "psw_attempts=%d successes=%d fails=%d cancelled=%d attempts_per_finished=%s",
-            mode,
-            t_mem,
-            _fmt_opt(s.avg_wait_per_request),
-            s.total_finished,
-            s.trial_count,
-            s.psw_purify_attempts,
-            s.psw_purify_successes,
-            s.psw_purify_fails,
-            s.psw_cancelled,
-            _fmt_opt(s.psw_purify_attempts_per_finished),
-        )
-
-    avg_off = next((s.avg_wait_per_request for s in summaries if not s.enable_psw), None)
-    avg_on = next((s.avg_wait_per_request for s in summaries if s.enable_psw), None)
-    if avg_off is not None and avg_on is not None:
-        logging.info(
-            "Delta t_mem=%g avg_wait_delta=%s avg_wait_ratio_on_over_off=%s",
-            t_mem,
-            _fmt_opt(avg_on - avg_off),
-            _fmt_opt(avg_on / avg_off),
-        )
+    return summarize_to_rows(scenario, summaries)
 
 
 def main() -> None:
+    logging.shutdown
+    logging.basicConfig(level=getattr(logging, LOG_LEVEL.upper()))
+
     parser = argparse.ArgumentParser(
-        description="Sweep T_MEM with fixed p_swap=0.2, gen_rate=50, psw_threshold=0.95"
+        description="Sweep T_MEM with custom defaults for PSW experiments"
     )
     parser.add_argument(
         "--t-mem",
@@ -217,7 +165,7 @@ def main() -> None:
         "--run-dir",
         type=Path,
         default=None,
-        help="Output directory for this run. Default: data/YYYYMMDD_psw_tmem_sweep",
+        help="Output directory for this run. Default: data/YYYYMMDD_psw_tmem_sweep_custom",
     )
     parser.add_argument(
         "--run-date",
@@ -248,24 +196,10 @@ def main() -> None:
         action="store_true",
         help="Append to existing CSVs instead of overwriting them.",
     )
-    parser.add_argument(
-        "--log-file",
-        type=Path,
-        default=None,
-        help="Log file path. Default: run_dir/psw_tmem_sweep.log",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        default=None,
-        help="Log level (e.g. DEBUG, INFO). Default: built-in LOG_LEVEL.",
-    )
     args = parser.parse_args()
 
     t_mem_values = T_MEM_VALUES if args.t_mem_values is None else args.t_mem_values
-    seeds = (
-        SEEDS if args.seeds is None else [int(x) for x in args.seeds.split(",") if x]
-    )
+    seeds = SEEDS if args.seeds is None else [int(x) for x in args.seeds.split(",") if x]
     runs_per_seed = RUNS_PER_SEED if args.runs_per_seed is None else args.runs_per_seed
     sim_time = SIM_TIME if args.sim_time is None else args.sim_time
     init_fidelity = INIT_FIDELITY if args.init_fidelity is None else args.init_fidelity
@@ -273,37 +207,9 @@ def main() -> None:
     nodes = NODES if args.nodes is None else args.nodes
     requests = REQUESTS if args.requests is None else args.requests
 
-    run_dir = resolve_run_dir("psw_tmem_sweep", args.run_dir, args.run_date)
+    run_dir = resolve_run_dir("psw_tmem_sweep_custom", args.run_dir, args.run_date)
     out_long: Path = args.output_long or (run_dir / OUTPUT_LONG_NAME)
     out_wide: Path = args.output_wide or (run_dir / OUTPUT_WIDE_NAME)
-    log_path: Path = args.log_file or (run_dir / "psw_tmem_sweep.log")
-    log_level = LOG_LEVEL if args.log_level is None else args.log_level
-    setup_logging(log_path, level=log_level, append=args.append)
-    logging.info("Run config: t_mem_values=%s", ",".join(str(v) for v in t_mem_values))
-    logging.info(
-        "Run config: seeds=%s runs_per_seed=%d sim_time=%g nodes=%d requests=%d",
-        ",".join(str(s) for s in seeds),
-        runs_per_seed,
-        sim_time,
-        nodes,
-        requests,
-    )
-    logging.info(
-        "Run config: p_swap=%g psw_threshold=%g init_fidelity=%g f_req=%g verbose_sim=%s",
-        P_SWAP,
-        psw_threshold,
-        init_fidelity,
-        F_REQ,
-        VERBOSE_SIM,
-    )
-    logging.info(
-        "Run config: out_long=%s out_wide=%s log=%s append=%s log_level=%s",
-        out_long,
-        out_wide,
-        log_path,
-        args.append,
-        log_level.upper(),
-    )
     out_long.parent.mkdir(parents=True, exist_ok=True)
     out_wide.parent.mkdir(parents=True, exist_ok=True)
     if not args.append:
@@ -312,7 +218,7 @@ def main() -> None:
 
     write_config_md(
         run_dir,
-        "psw_tmem_sweep",
+        "psw_tmem_sweep_custom",
         {
             "t_mem": t_mem_values,
             "p_swap": P_SWAP,
@@ -334,16 +240,6 @@ def main() -> None:
     for scenario in iter_scenarios(
         t_mem_values=t_mem_values, psw_threshold=psw_threshold, p_swap=P_SWAP
     ):
-        logging.info(
-            "Start scenario: t_mem=%g (seeds=%s, runs_per_seed=%d, sim_time=%g, nodes=%d, requests=%d)",
-            scenario.t_mem,
-            ",".join(str(s) for s in seeds),
-            runs_per_seed,
-            sim_time,
-            nodes,
-            requests,
-        )
-        scenario_start = time.perf_counter()
         with futures.ProcessPoolExecutor(max_workers=1) as ex:
             fut = ex.submit(
                 run_scenario,
@@ -360,25 +256,15 @@ def main() -> None:
                 verbose_sim=VERBOSE_SIM,
             )
             try:
-                long_rows, wide_row, summaries = fut.result(
-                    timeout=args.scenario_timeout_sec
-                )
+                long_rows, wide_row = fut.result(timeout=args.scenario_timeout_sec)
             except futures.TimeoutError:
                 fut.cancel()
                 ex.shutdown(cancel_futures=True)
-                logging.warning(
+                print(
                     f"[timeout] t_mem={scenario.t_mem:g} exceeded "
                     f"{args.scenario_timeout_sec} sec; skipping."
                 )
                 continue
-        elapsed = time.perf_counter() - scenario_start
-        logging.info(
-            "Finish scenario: t_mem=%g rows_long=%d elapsed_sec=%.2f",
-            scenario.t_mem,
-            len(long_rows),
-            elapsed,
-        )
-        log_summaries(summaries, t_mem=scenario.t_mem)
 
         if long_rows:
             if not long_header_written:
@@ -387,20 +273,10 @@ def main() -> None:
                     w.writeheader()
                     w.writerows(long_rows)
                 long_header_written = True
-                logging.info(
-                    "Wrote long CSV header and %d rows: %s", len(long_rows), out_long
-                )
             else:
                 with out_long.open("a", newline="", encoding="utf-8") as f:
                     w = csv.DictWriter(f, fieldnames=list(long_rows[0].keys()))
                     w.writerows(long_rows)
-                logging.info(
-                    "Appended %d rows to long CSV: %s", len(long_rows), out_long
-                )
-        else:
-            logging.warning(
-                "No long rows for t_mem=%g; skipping long CSV write", scenario.t_mem
-            )
 
         if not wide_header_written:
             with out_wide.open("w", newline="", encoding="utf-8") as f:
@@ -408,28 +284,22 @@ def main() -> None:
                 w.writeheader()
                 w.writerow(wide_row)
             wide_header_written = True
-            logging.info("Wrote wide CSV header and 1 row: %s", out_wide)
         else:
             with out_wide.open("a", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, fieldnames=list(wide_row.keys()))
                 w.writerow(wide_row)
-            logging.info("Appended 1 row to wide CSV: %s", out_wide)
-
-        def _fmt(v: Optional[float]) -> str:
-            return "" if v is None else f"{v:.2f}"
 
         off_avg = next((row for row in long_rows if row["mode"] == "psw_off"), None)
         on_avg = next((row for row in long_rows if row["mode"] == "psw_on"), None)
-        logging.info(
+        print(
             f"t_mem={scenario.t_mem:g} "
             f"off(avg={off_avg['avg_wait_per_request_slot']}, fin={off_avg['total_finished']}) "
             f"on(avg={on_avg['avg_wait_per_request_slot']}, fin={on_avg['total_finished']}, "
             f"psw_attempts={on_avg['psw_purify_attempts']}, cancelled={on_avg['psw_cancelled']})"
         )
 
-    logging.info("Wrote: %s", out_long)
-    logging.info("Wrote: %s", out_wide)
-    logging.info("Log: %s", log_path)
+    print(f"Wrote: {out_long}")
+    print(f"Wrote: {out_wide}")
 
 
 if __name__ == "__main__":

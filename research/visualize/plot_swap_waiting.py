@@ -1,3 +1,4 @@
+import argparse
 import csv
 from pathlib import Path
 
@@ -6,10 +7,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from exp.run_dir import find_latest_run_dir
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT / "data" / "swap_waiting_results.csv"
-OUTPUT_PATH = Path(__file__).with_name("swap_waiting.png")
+DATA_NAME = "swap_waiting.csv"
+OUTPUT_NAME = "swap_waiting.png"
 
 
 def load_results(path: Path):
@@ -55,9 +57,23 @@ def plot_swap_waiting(p_swap, avg_swap_wait, avg_request_wait, dest: Path) -> No
 
 
 def main() -> None:
-    p_swap, avg_swap_wait, avg_request_wait = load_results(DATA_PATH)
-    plot_swap_waiting(p_swap, avg_swap_wait, avg_request_wait, OUTPUT_PATH)
-    print(f"Saved plot to {OUTPUT_PATH}")
+    parser = argparse.ArgumentParser(description="Plot swap waiting results")
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help="Run directory containing swap_waiting.csv",
+    )
+    args = parser.parse_args()
+
+    run_dir = Path(args.run_dir) if args.run_dir else find_latest_run_dir("swap_waiting")
+    if run_dir is None:
+        raise SystemExit("run_dir is not set and no matching run directory was found")
+    data_path = run_dir / DATA_NAME
+    output_path = run_dir / OUTPUT_NAME
+    p_swap, avg_swap_wait, avg_request_wait = load_results(data_path)
+    plot_swap_waiting(p_swap, avg_swap_wait, avg_request_wait, output_path)
+    print(f"Saved plot to {output_path}")
 
 
 if __name__ == "__main__":
