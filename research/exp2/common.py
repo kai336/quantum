@@ -99,6 +99,15 @@ def setup_logging(run_dir: Path) -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=handlers,
     )
+    try:
+        import qns.utils.log as qlog
+
+        qlog.logger.handlers.clear()
+        for handler in handlers:
+            qlog.logger.addHandler(handler)
+        qlog.logger.setLevel(logging.INFO)
+    except Exception:
+        pass
 
 
 def load_yaml(path: str | Path) -> Dict[str, Any]:
