@@ -34,6 +34,17 @@ l0_link_max = 5  # リンクレベルEPのバッファ数
 CLASSICAL_LIGHT_SPEED = 2e8  # m/s 相当（伝送遅延近似用）
 
 
+class PSWRequest:
+    """PSW用の簡易リクエストコンテナ。"""
+
+    def __init__(self, *, name: str, swap_plan: tuple[Operation, list[Operation]], target_op: Operation):
+        self.name = name
+        self.swap_plan = swap_plan
+        self.target_op = target_op
+        self.is_done: bool = False
+        self.is_psw: bool = True
+
+
 class ControllerApp(Application):
     """
     ネットワーク全体を制御(EP生成、スワップ計画、リクエスト管理)
@@ -74,9 +85,8 @@ class ControllerApp(Application):
         self.gen_interval_slot: int = self._calc_gen_interval_slot()
         self._next_gen_time_slot: int | None = None
         # PSW用にアドホックなオペレーションを管理
-        self.psw_ops: List[Operation] = []
         self.psw_op_target: Dict[Operation, Dict[str, object]] = {}
-        self.psw_groups: Dict[Operation, List[Operation]] = {}
+        self.psw_groups: Dict[Operation, Dict[str, object]] = {}
         # PSWの統計
         self.psw_gen_link_scheduled: int = 0
         self.psw_purify_scheduled: int = 0
@@ -211,26 +221,29 @@ class ControllerApp(Application):
             if req.is_done:
                 # print("!!!!!!!!req", idx, " finished!!!!!!!!")
                 continue
-            elif root_op.status == OpStatus.DONE and root_op.ep.fidelity >= self.f_req:
+            elif root_op.status == OpStatus.DONE and (
+                getattr(req, "is_psw", False)
+                or (root_op.ep and root_op.ep.fidelity >= self.f_req)
+            ):
                 # f_reqも終了条件に加える
                 req.is_done = True
-                finish_time = self._simulator.tc.time_slot
-                self.completed_requests.append(
-                    {
-                        "index": idx,
-                        "name": req.name,
-                        "finish_time": finish_time,
-                        "fidelity": root_op.ep.fidelity,
-                    }
-                )
-                log.logger.debug(
-                    f"!!!!!!!!req {idx} finished!!!!!!!! fid: {root_op.ep.fidelity}"
-                )
+                if not getattr(req, "is_psw", False):
+                    finish_time = self._simulator.tc.time_slot
+                    self.completed_requests.append(
+                        {
+                            "index": idx,
+                            "name": req.name,
+                            "finish_time": finish_time,
+                            "fidelity": root_op.ep.fidelity,
+                        }
+                    )
+                    log.logger.debug(
+                        f"!!!!!!!!req {idx} finished!!!!!!!! fid: {root_op.ep.fidelity}"
+                    )
                 continue
             else:
                 is_all_done = False
                 self._advance_request(req, root_op, ops)
-        self._advance_psw_ops()
 
         if is_all_done:
             # 全リクエスト終わったらシミュレータのイベント全消しして終了
@@ -253,7 +266,7 @@ class ControllerApp(Application):
         dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
         for link in list(self.links):  # 途中でリンクが削除されても安全に回す
             link.decoherence(dt=dt)
-            if link.fidelity < f_cut:  # f_cut以下のもつれを切り捨てる
+            if link.fidelity < self.f_cut:  # f_cut以下のもつれを切り捨てる
                 self.decoherence_EP(link)
         if self.enable_psw and self.psw_threshold is not None:
             self._scan_psw_targets()
@@ -336,10 +349,7 @@ class ControllerApp(Application):
         # swap
         ep_left = op.children[0].ep
         ep_right = op.children[1].ep
-        if (
-            ep_left is None
-            or ep_right is None
-        ):
+        if ep_left is None or ep_right is None:
             # 必要なEPがデコヒーレンス等で欠落したら再生成を要求する
             log.logger.debug(f"{self._simulator.tc} swap missing ep op={op}")
             op.request_regen()
@@ -413,7 +423,10 @@ class ControllerApp(Application):
         t_done = tc.__add__(Time(time_slot=delay_slot))
         event = func_to_event(
             t=t_done,
-            fn=lambda op=op, ep=ep_target, fid=new_fid, prob=success_prob: self._finish_purify(  # noqa: E501
+            fn=lambda op=op,
+            ep=ep_target,
+            fid=new_fid,
+            prob=success_prob: self._finish_purify(  # noqa: E501
                 op=op, ep_target=ep, new_fid=fid, success_prob=prob
             ),
             by=self,
@@ -500,29 +513,57 @@ class ControllerApp(Application):
         op_parent = op_child.parent
         if op_parent is None or op_parent.type != OpType.SWAP:
             return False
-        if len(op_parent.children) < 2:
-            return False
+        assert len(op_parent.children) == 2
         left = op_parent.children[0]
         right = op_parent.children[1]
         other = right if op_child is left else left
         return other.ep is None
 
+    def _psw_waiting_ep(self, op: Operation) -> Optional[EP]:
+        """PSW対象のopが「片側だけEPありで待機中」なら、そのEPを返す。"""
+        if op.type == OpType.GEN_LINK:
+            return op.ep
+        if op.type == OpType.SWAP:
+            if len(op.children) < 2:
+                return None
+            ep_left = op.children[0].ep
+            ep_right = op.children[1].ep
+            eps = [ep for ep in (ep_left, ep_right) if ep is not None]
+            return eps[0] if len(eps) == 1 else None
+        if op.type == OpType.PURIFY:
+            if len(op.pur_eps) < 2:
+                return None
+            eps = [ep for ep in op.pur_eps if ep is not None]
+            return eps[0] if len(eps) == 1 else None
+        return None
+
+    def _is_psw_waiting(self, op: Operation) -> bool:
+        """PSW対象になり得る待機中かどうか。"""
+        return self._psw_waiting_ep(op) is not None
+
     def _scan_psw_targets(self):
         if not self.enable_psw or self.psw_threshold is None:
             return
         for req in self.requests:
+            if getattr(req, "is_psw", False):
+                continue
             if req.swap_plan is None:
                 continue
             _, ops = req.swap_plan
             for op in ops:
-                if op.ep is None or op.threshold_purified:
+                if op.threshold_purified:
                     continue
-                if not self._is_swap_waiting(op):
+                waiting_ep = self._psw_waiting_ep(op)
+                if waiting_ep is None:
                     continue
-                if op.ep.fidelity >= self.psw_threshold:
+                if waiting_ep.fidelity >= self.psw_threshold:
                     continue
                 if self._has_pending_psw(op):
                     continue
+                parent_type = op.parent.type.name if op.parent is not None else "NONE"
+                log.logger.info(
+                    f"{self._simulator.tc} PSW target found op={op} parent={parent_type} fid={waiting_ep.fidelity:.3f} threshold={self.psw_threshold}"  # noqa: E501
+                )
                 self._schedule_psw_op(target_op=op)
 
     def _has_pending_psw(self, target_op: Operation) -> bool:
@@ -534,7 +575,9 @@ class ControllerApp(Application):
         ops: List[Operation] = []
 
         def _clone(node: Operation, parent: Optional[Operation] = None) -> Operation:
-            status = OpStatus.READY if node.type == OpType.GEN_LINK else OpStatus.WAITING
+            status = (
+                OpStatus.READY if node.type == OpType.GEN_LINK else OpStatus.WAITING
+            )
             clone = Operation(
                 name=f"PSW_{node.name}",
                 type=node.type,
@@ -556,28 +599,60 @@ class ControllerApp(Application):
         return ops
 
     def _register_psw_group(
-        self, *, root_op: Operation, ops: List[Operation], target_op: Operation, role: str
+        self,
+        *,
+        root_op: Operation,
+        ops: List[Operation],
+        target_op: Operation,
+        role: str,
+        psw_req: PSWRequest,
     ) -> None:
-        self.psw_groups[root_op] = ops
-        self.psw_op_target[root_op] = {"target": target_op, "role": role}
+        self.psw_groups[root_op] = {"ops": ops, "request": psw_req}
+        self.psw_op_target[root_op] = {
+            "target": target_op,
+            "role": role,
+            "request": psw_req,
+        }
 
     def _cleanup_psw_group(self, root_op: Operation) -> None:
-        ops = self.psw_groups.pop(root_op, [])
+        info = self.psw_groups.pop(root_op, {})
+        ops = info.get("ops", [])
+        psw_req: PSWRequest | None = info.get("request")
         for op in ops:
-            if op in self.psw_ops:
-                self.psw_ops.remove(op)
             self.psw_op_target.pop(op, None)
+        # 同じPSWリクエストを指す他のグループもまとめて掃除
+        if psw_req:
+            for key, val in list(self.psw_groups.items()):
+                if val.get("request") is psw_req:
+                    self.psw_groups.pop(key, None)
+                    for op in val.get("ops", []):
+                        self.psw_op_target.pop(op, None)
+        if psw_req:
+            psw_req.is_done = True
+            if psw_req in self.requests:
+                self.requests.remove(psw_req)
 
     def _schedule_psw_op(self, target_op: Operation):
         target_op.threshold_purified = True  # 今回の待ち時間では1回だけ
         ops = self._clone_psw_tree(target_op)
         root_op = ops[0]
-        self.psw_ops.extend(ops)
+        psw_req = PSWRequest(
+            name=f"PSW_{target_op.name}",
+            swap_plan=(root_op, ops),
+            target_op=target_op,
+        )
+        for op in ops:
+            op.request = psw_req
+        self.requests.append(psw_req)
         log.logger.info(
             f"{self._simulator.tc} PSW schedule target={target_op} root={root_op}"
         )
         self._register_psw_group(
-            root_op=root_op, ops=ops, target_op=target_op, role="sacrificial"
+            root_op=root_op,
+            ops=ops,
+            target_op=target_op,
+            role="sacrificial",
+            psw_req=psw_req,
         )
         self.psw_gen_link_scheduled += 1
 
@@ -585,19 +660,23 @@ class ControllerApp(Application):
         self, sacrificial_op: Operation, target_op: Operation
     ):
         sacrificial_ep = sacrificial_op.ep
-        target_ep = target_op.ep
+        target_ep = self._psw_waiting_ep(target_op)
         if (
             sacrificial_ep is None
             or target_ep is None
-            or not self._is_swap_waiting(target_op)
+            or not self._is_psw_waiting(target_op)
         ):
             log.logger.info(
                 f"{self._simulator.tc} PSW cancelled before purify target={target_op}"
             )
             if sacrificial_ep is not None:
                 self.consume_EP(sacrificial_ep)
+            target_op.threshold_purified = False
             self.psw_cancelled += 1
             return
+        log.logger.info(
+            f"{self._simulator.tc} PSW purify start target={target_op} target_fid={target_ep.fidelity:.3f} sacrificial_fid={sacrificial_ep.fidelity:.3f}"  # noqa: E501
+        )
         name = f"PSW_PURIFY({target_op.n1.name}-{target_op.n2.name})"
         purify_op = Operation(
             name=name,
@@ -610,55 +689,35 @@ class ControllerApp(Application):
             request=target_op.request,
         )
         sacrificial_ep.change_owner(pre_owner=sacrificial_op, new_owner=purify_op)
-        self.psw_ops.append(purify_op)
-        self._register_psw_group(
-            root_op=purify_op,
-            ops=[purify_op],
-            target_op=target_op,
-            role="purify",
-        )
-        self.psw_op_target[purify_op]["sacrificial_ep"] = sacrificial_ep
+        # PSWリクエストへ統合
+        meta = self.psw_op_target.get(sacrificial_op) or {}
+        psw_req: PSWRequest | None = meta.get("request")
+        if psw_req is None:
+            # 安全策：既存ターゲットのリクエストを利用
+            psw_req = PSWRequest(
+                name=f"PSW_{target_op.name}_purify",
+                swap_plan=(purify_op, [purify_op]),
+                target_op=target_op,
+            )
+            self.requests.append(psw_req)
+        purify_op.request = psw_req
+        group_info = self.psw_groups.get(sacrificial_op)
+        if group_info:
+            group_ops = group_info.get("ops", [])
+            group_ops.append(purify_op)
+            group_info["ops"] = group_ops
+        self.psw_groups[purify_op] = {"ops": [purify_op], "request": psw_req}
+        self.psw_op_target[purify_op] = {
+            "target": target_op,
+            "role": "purify",
+            "sacrificial_ep": sacrificial_ep,
+            "request": psw_req,
+        }
         self.psw_purify_scheduled += 1
 
     def _advance_psw_ops(self):
-        if not self.psw_ops:
-            return
-        for op in list(self.psw_ops):
-            meta = self.psw_op_target.get(op)
-            target = meta.get("target") if meta else None
-            # 対象がswap待機でなくなったらキャンセル
-            if (
-                meta is not None
-                and target is not None
-                and not self._is_swap_waiting(target)
-            ):
-                if meta.get("role") in ("sacrificial", "purify"):
-                    root = op
-                    ops = self.psw_groups.get(root, [root])
-                    for item in ops:
-                        if item.ep is not None and item.ep.owner_op is item:
-                            self.consume_EP(item.ep)
-                    sacrificial_ep = meta.get("sacrificial_ep")
-                    if (
-                        sacrificial_ep is not None
-                        and sacrificial_ep in self.links
-                        and sacrificial_ep.owner_op is op
-                    ):
-                        self.consume_EP(sacrificial_ep)
-                    self._cleanup_psw_group(root)
-                    self.psw_cancelled += 1
-                    log.logger.info(
-                        f"{self._simulator.tc} PSW cancelled op={op} target={target}"
-                    )
-                    continue
-            if op.status == OpStatus.READY:
-                req = target.request if target is not None else None
-                self._run_op(req, op)
-
-    def _cleanup_psw_op(self, op: Operation):
-        if op in self.psw_ops:
-            self.psw_ops.remove(op)
-        self.psw_op_target.pop(op, None)
+        # PSWは通常のリクエストループに統合済み
+        return
 
     def _calc_delay_slots(self, length: float, round_trip: bool = True) -> int:
         distance = length * (2 if round_trip else 1)
@@ -731,9 +790,7 @@ class ControllerApp(Application):
                 op.done()
                 self._cleanup_psw_group(op)
                 if target is not None:
-                    self._on_psw_sacrificial_ready(
-                        sacrificial_op=op, target_op=target
-                    )
+                    self._on_psw_sacrificial_ready(sacrificial_op=op, target_op=target)
             else:
                 if ep_target.owner_op is not op:
                     pre = op.children[0]

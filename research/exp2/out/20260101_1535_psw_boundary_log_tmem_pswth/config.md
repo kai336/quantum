@@ -1,0 +1,34 @@
+# 実験設定
+
+- 実験名: psw_boundary_log_tmem_pswth
+- 作成日: 2026-01-01 
+
+## 必須パラメータ
+| 項目 | 値 |
+| --- | --- |
+| nodes | 50 |
+| requests | 5 |
+| sim_time | 300000 |
+| f_req | 0.8 |
+| init_fidelity | 0.95 |
+| sweep.t_mem | 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.01 |
+| sweep.p_swap | 0.4 |
+| sweep.link_fidelity | 0.95 |
+| sweep.psw_threshold | 0.85, 0.88, 0.91, 0.94 |
+| seeds | 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 |
+| runs_per_seed | 1 |
+
+## その他パラメータ
+| 項目 | 値 |
+| --- | --- |
+| exp_name | psw_boundary_log_tmem_pswth |
+| experiment | psw_boundary |
+| description | t_mem対数刻み×psw_threshold広範囲スイープ（p_swap=0.4, init_fidelity=0.95, seeds=0-9） |
+| gen_rate | 50 |
+| memory_capacity | 5 |
+| waxman_size | 100000 |
+| waxman_alpha | 0.2 |
+| waxman_beta | 0.6 |
+| sweep | {'t_mem': [1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.01], 'p_swap': [0.4], 'link_fidelity': [0.95], 'psw_threshold': [0.85, 0.88, 0.91, 0.94]} |
+| verbose_sim | False |
+| config_path | configs/psw_boundary_log_tmem_pswth.yaml |

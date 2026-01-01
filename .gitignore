@@ -5,3 +5,4 @@ _*
 __pycache__
 uv.lock
 log.txt
+*.log
