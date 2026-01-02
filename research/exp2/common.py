@@ -10,6 +10,7 @@ import math
 import os
 import sys
 import traceback
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
@@ -195,6 +196,8 @@ def _run_single(
 
     net.build_route()
     net.random_requests(number=requests)
+    # リクエスト生成のためにset_seedで固定したrandom状態が、この後のswap成功判定まで貫通しないように再シードする
+    random.seed()
 
     controller_node = QNode(
         name="controller",

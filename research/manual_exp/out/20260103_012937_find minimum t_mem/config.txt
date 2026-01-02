@@ -1,0 +1,26 @@
+EXP_NAME = "find minimum t_mem"
+T_MEM_VALUES: Sequence[float] = [
+    20.0,
+    10.0,
+    8.0,
+    4.0,
+    2.0,
+    1.0,
+    0.8,
+    0.4,
+]
+P_SWAP = 0.4
+LINK_FIDELITY = 0.95
+PSW_THRESHOLD = 0.94
+NODES = 50
+REQUESTS = 5
+SIM_TIME = 300000
+F_REQ = 0.8
+SEEDS: Sequence[int] = [0]
+RUNS_PER_SEED = 1
+GEN_RATE = 50
+MEMORY_CAPACITY = 5
+WAXMAN_SIZE = 100000
+WAXMAN_ALPHA = 0.2
+WAXMAN_BETA = 0.6
+VERBOSE_SIM = False

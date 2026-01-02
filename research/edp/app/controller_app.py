@@ -37,7 +37,13 @@ CLASSICAL_LIGHT_SPEED = 2e8  # m/s 相当（伝送遅延近似用）
 class PSWRequest:
     """PSW用の簡易リクエストコンテナ。"""
 
-    def __init__(self, *, name: str, swap_plan: tuple[Operation, list[Operation]], target_op: Operation):
+    def __init__(
+        self,
+        *,
+        name: str,
+        swap_plan: tuple[Operation, list[Operation]],
+        target_op: Operation,
+    ):
         self.name = name
         self.swap_plan = swap_plan
         self.target_op = target_op
@@ -55,6 +61,7 @@ class ControllerApp(Application):
         p_swap: float = p_swap,
         # p_pur: float = p_pur,
         gen_rate: int = gen_rate,
+        t_mem: float = 1.0,
         f_req=f_req,
         f_cut=f_cut,
         init_fidelity: float = init_fidelity,
@@ -67,6 +74,7 @@ class ControllerApp(Application):
         self.gen_rate: int = gen_rate
         self.f_req: float = f_req
         self.f_cut: float = f_cut
+        self.t_mem = t_mem
         self.init_fidelity: float = init_fidelity
         # swap待機中に忠実度が閾値を下回ったら1回だけpurifyするPSW(Purify-while-Swap-waiting)
         self.enable_psw: bool = enable_psw
@@ -263,10 +271,11 @@ class ControllerApp(Application):
             self.links += self.links_next
 
         # print("links: ", [link.fidelity for link in self.links])
-        dt = Time(time_slot=1).sec  # 1 timeslotをsec単位に変換
+        dt = Time(time_slot=3).sec  # 1 timeslotをsec単位に変換
         for link in list(self.links):  # 途中でリンクが削除されても安全に回す
-            link.decoherence(dt=dt)
+            self.fid_update_EP(ep=link, dt=dt)  # フィデリティ更新
             if link.fidelity < self.f_cut:  # f_cut以下のもつれを切り捨てる
+                log.logger.info(f"{self._simulator.tc} decoherenced link {link.nodes}")
                 self.decoherence_EP(link)
         if self.enable_psw and self.psw_threshold is not None:
             self._scan_psw_targets()
@@ -462,6 +471,13 @@ class ControllerApp(Application):
         )
         self.links_next.append(link)
         return link
+
+    def fid_update_EP(self, ep: EP, dt: float):
+        # 時間経過によるフィデリティ更新
+        f = ep.fidelity
+        alpha: float = math.exp(-dt / self.t_mem)
+        f_new: float = 1 / 4 + alpha * (f - 1 / 4)
+        ep.fidelity = f_new
 
     def decoherence_EP(self, ep: EP):
         # デコヒーレンスによってLinkEPが切り捨てられるとき

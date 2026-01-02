@@ -1,0 +1,3 @@
+exp_name: psw_hardcoded
+experiment: psw_hardcoded
+description: "コード内パラメタ固定版（t_mem 0.1-1.0, p_swap=0.2, psw_threshold=0.94, init_fidelity=0.95）"
