@@ -1,11 +1,5 @@
-EXP_NAME = "t_mem sweep 1-5sec"
-T_MEM_VALUES: Sequence[float] = [
-    5.0,
-    4.0,
-    3.0,
-    2.0,
-    1.0,
-]
+EXP_NAME = "t_mem sweep 0.02-0.1sec"
+T_MEM_VALUES: Sequence[float] = [0.1, 0.08, 0.06, 0.04, 0.02]
 P_SWAP = 0.4
 LINK_FIDELITY = 0.95
 PSW_THRESHOLD = 0.94

@@ -21,3 +21,5 @@ WAXMAN_SIZE = 100000
 WAXMAN_ALPHA = 0.2
 WAXMAN_BETA = 0.6
 VERBOSE_SIM = False
+
+*gen_EPロジック変更後　バグりまくり*

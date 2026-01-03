@@ -3,12 +3,15 @@
 import logging
 import math
 import random
-from typing import Dict, List, Optional
+from collections import deque
+from os import name
+from typing import DefaultDict, Deque, Dict, List, Optional
 
 import qns.utils.log as log
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.network import QuantumNetwork
+from qns.network.topology.waxmantopo import QuantumChannel
 from qns.simulator.event import func_to_event
 from qns.simulator.simulator import Simulator
 from qns.simulator.ts import Time
@@ -91,7 +94,9 @@ class ControllerApp(Application):
         self.nodes: List[QNode] | None = None
         self.completed_requests: List[dict] = []
         self.gen_interval_slot: int = self._calc_gen_interval_slot()
-        self._next_gen_time_slot: int | None = None
+        self._next_gen_time_slot: int | None = (
+            None  # gen_rateに応じてリンクレベルEP生成するため
+        )
         # PSW用にアドホックなオペレーションを管理
         self.psw_op_target: Dict[Operation, Dict[str, object]] = {}
         self.psw_groups: Dict[Operation, Dict[str, object]] = {}
@@ -104,6 +109,9 @@ class ControllerApp(Application):
         # swap待機時間の集計用
         self.swap_wait_times: List[int] = []
         self.swap_wait_times_by_req: Dict[str, List[int]] = {}
+        # gen_link -> gen_EP_routineで生成するqcリスト dict[qc_name, [op待ち行列]]
+        self.genlink_queue: dict[str, deque[Operation]] = {}
+        self.qc_by_name: Dict[str, NewQC] = {}
 
     def install(self, node: QNode, simulator: Simulator):
         super().install(node, simulator)
@@ -172,10 +180,10 @@ class ControllerApp(Application):
         new_qcs: List[NewQC] = []
         for qc in self.net.qchannels:
             fidelity_init: float = self.init_fidelity
-            name = qc.name
+            qc_name = qc.name
             node_list = qc.node_list
             new_qc = NewQC(
-                name=name,
+                name=qc_name,
                 node_list=node_list,
                 fidelity_init=fidelity_init,
                 memory_capacity=l0_link_max,
@@ -184,35 +192,67 @@ class ControllerApp(Application):
             new_qcs.append(new_qc)
 
         self.new_qcs = new_qcs
+        self.genlink_queue = {qc.name: deque() for qc in self.new_qcs}
+        self.qc_by_name = {qc.name: qc for qc in self.new_qcs}
 
     def gen_EP_routine(self):
-        # 全チャネルでリンクレベルもつれ生成
-        log.logger.debug(f"{self._simulator.tc} gen ep routine start")
+        # 全チャネルでリンクレベルもつれ生成x
+        # ->gen_link opから要求のあったものだけ生成
+
+        # 次のイベント挿入
+        self._add_next_tick_event(fn=self.request_handler_routine)
+
+        # gen_rateの間隔をみてまだならreturn
         tc = self._simulator.tc
         if self._next_gen_time_slot is None:
             self._next_gen_time_slot = tc.time_slot
+        if tc.time_slot < self._next_gen_time_slot:
+            return
 
-        if tc.time_slot >= self._next_gen_time_slot:
-            for qc in self.new_qcs:
-                if not qc.has_free_memory:
-                    continue
+        log.logger.debug(f"{self._simulator.tc} gen ep routine start")
 
-                nodes = qc.node_list
-                _ = self.gen_single_EP(
-                    src=nodes[0],
-                    dest=nodes[1],
-                    fidelity=qc.fidelity_init,
-                    t=tc,
-                    qc=qc,
-                )
-            # 次回の生成時刻を更新
-            self._next_gen_time_slot += self.gen_interval_slot
+        # pending demandsからEP生成
+        for qc_name, queue in list(self.genlink_queue.items()):
+            if not queue:
+                continue
+            qc = self.qc_by_name[qc_name]
+            assert qc is not None, f"no QC named {qc_name}"
+            if not qc.has_free_memory:
+                continue
+            op = queue.popleft()
+            nodes = qc.node_list
+            ep = self.gen_single_EP(
+                src=nodes[0],
+                dest=nodes[1],
+                fidelity=qc.fidelity_init,
+                t=tc,
+                qc=qc,
+            )
+            if ep is None:
+                queue.appendleft(op)  # queueの先頭に戻す
+                continue
+            # gen_linkをdoneにする
+            op.ep = ep
+            ep.set_owner(op)
+            op.done()
+            op.demand_registered = False  # 再生成のために解除
 
-        self._add_tick_event(fn=self.request_handler_routine)
+        # 次回の生成時刻を更新
+        self._next_gen_time_slot += self.gen_interval_slot
+
+    def _find_qc_by_nodes(self, n1: QNode, n2: QNode) -> Optional[NewQC]:
+        for qc in self.new_qcs:
+            if set(qc.node_list) == {n1, n2}:
+                return qc
+        return None
 
     def request_handler_routine(self):
         # リクエストを管理
-        # req.swap_plan, req.swap_progressから各操作を実行\
+        # req.swap_plan, req.swap_progressから各操作を実行
+
+        # 次のイベント挿入
+        self._add_next_tick_event(fn=self.links_manager_routine)
+
         log.logger.debug(f"{self._simulator.tc} req routine start")
         is_all_done = True
         for req in self.requests:
@@ -260,8 +300,6 @@ class ControllerApp(Application):
             self._simulator.event_pool.event_list.clear()
             return
 
-        self._add_tick_event(fn=self.links_manager_routine)
-
     def links_manager_routine(self):
         # self.linksからLinkEPのデコヒーレンスを管理
         # self.links_next　を次のタイムスロットでself.linksに挿入
@@ -281,7 +319,7 @@ class ControllerApp(Application):
             self._scan_psw_targets()
         self.links_next.clear()
 
-        self._add_tick_event(fn=self.gen_EP_routine)
+        self._add_next_tick_event(fn=self.gen_EP_routine)
 
     def _advance_request(
         self, req: NewRequest, root_op: Operation, ops: List[Operation]
@@ -331,28 +369,41 @@ class ControllerApp(Application):
                 bucket.extend(waits)
 
     def _handle_gen_link(self, op: Operation):
-        # 生成済みEPを探す
-        pair = set((op.n1, op.n2))
-        ep_cand: Optional[EP] = None
-        for link in self.links:
-            if set(link.nodes) == pair and link.is_free:
-                ep_cand = link
-                break
-        if ep_cand is None:
-            # まだEPなし
-            log.logger.debug(f"{self._simulator.tc} no link")
-            op.request_regen()  # 再試行できるようREADYに戻す
-            return
+        # 生成済みEPを探すx
+        # ->リンクEPの生成を要求する
+        self._register_link_demand(op)
 
-        log.logger.debug(f"{self._simulator.tc} gen link success op={op}")
-        ep_cand.set_owner(op)
-        op.done()
-        meta = self.psw_op_target.get(op)
-        if meta is not None and meta.get("role") == "sacrificial":
-            target = meta.get("target")
-            self._cleanup_psw_group(op)
-            if target is not None:
-                self._on_psw_sacrificial_ready(sacrificial_op=op, target_op=target)
+        # pair = set((op.n1, op.n2))
+        # ep_cand: Optional[EP] = None
+        # for link in self.links:
+        #     if set(link.nodes) == pair and link.is_free:
+        #         ep_cand = link
+        #         break
+        # if ep_cand is None:
+        #     # まだEPなし
+        #     log.logger.debug(f"{self._simulator.tc} no link")
+        #     op.request_regen()  # 再試行できるようREADYに戻す
+        #     return
+
+        # log.logger.debug(f"{self._simulator.tc} gen link success op={op}")
+        # ep_cand.set_owner(op)
+        # op.done()
+        # meta = self.psw_op_target.get(op)
+        # if meta is not None and meta.get("role") == "sacrificial":
+        #     target = meta.get("target")
+        #     self._cleanup_psw_group(op)
+        #     if target is not None:
+        #         self._on_psw_sacrificial_ready(sacrificial_op=op, target_op=target)
+
+    def _register_link_demand(self, op: Operation) -> NewQC:
+        # gen_linkによるリンクレベルEP生成の要求登録
+        qc = self._find_qc_by_nodes(op.n1, op.n2)
+        assert qc is not None, f"no QC for GEN_LINK: {op.n1.name}-{op.n2.name}"
+        if not op.demand_registered:
+            self.genlink_queue[qc.name].append(op)
+            op.demand_registered = True
+        op.status = OpStatus.WAITING
+        return qc
 
     def _handle_swap(self, op: Operation, req: Optional[NewRequest] = None):
         # swap
@@ -504,7 +555,7 @@ class ControllerApp(Application):
             self.links_next.remove(ep)
         del ep
 
-    def _add_tick_event(self, fn):
+    def _add_next_tick_event(self, fn):
         t_tick = Time(time_slot=1)
         tc = self._simulator.tc
         tn = tc.__add__(t_tick)

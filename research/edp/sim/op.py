@@ -1,6 +1,7 @@
 # swap, purify等の操作を扱うクラス
 # swapping treeを構成するノード
 from enum import Enum, auto
+from tkinter.constants import FALSE
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from qns.entity.node import QNode
@@ -52,7 +53,10 @@ class Operation:
         self.ep = ep  # この操作が完了した後にできるもつれ
         self.pur_eps = pur_eps or []
         self.request = request  # 対応するリクエスト
-        self.threshold_purified = threshold_purified  # swap待機中に閾値精製を済ませたかどうか
+        # swap待機中に閾値精製を済ませたかどうか
+        self.threshold_purified = threshold_purified
+        # gen_linkのとき、リンクレベルEP生成を要求したか
+        self.demand_registered: bool = False
 
     def is_leaf(self) -> bool:
         # 自分が葉ノードかどうか
@@ -115,6 +119,7 @@ class Operation:
         self.ep = None
         self.pur_eps.clear()
         self.threshold_purified = False
+        self.demand_registered = False
         if not self.is_leaf():
             self.status = OpStatus.RETRY
             for c in self.children:

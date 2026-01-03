@@ -34,15 +34,8 @@ from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
 
 # === パラメタ（ここを書き換えるだけ） ===
-EXP_NAME = "t_mem sweep 0.4-0.9sec"
-T_MEM_VALUES: Sequence[float] = [
-    0.9,
-    0.8,
-    0.7,
-    0.6,
-    0.5,
-    0.4,
-]
+EXP_NAME = "t_mem sweep 0.02-0.1sec"
+T_MEM_VALUES: Sequence[float] = [0.1, 0.08, 0.06, 0.04, 0.02]
 P_SWAP = 0.4
 LINK_FIDELITY = 0.95
 PSW_THRESHOLD = 0.94
