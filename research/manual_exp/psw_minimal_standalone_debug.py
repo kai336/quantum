@@ -34,17 +34,21 @@ from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
 
 # === パラメタ（ここを書き換えるだけ） ===
-EXP_NAME = "t_mem sweep 0.02-0.1sec"
-T_MEM_VALUES: Sequence[float] = [5.0, 4.0, 3.0, 2.0, 1.0]
-P_SWAP = 0.4
+EXP_NAME = "debug simv2 t_mem sweep 0.2-1.0sec"
+# T_MEM_VALUES: Sequence[float] = [1.0, 0.8, 0.6, 0.4, 0.2]
+T_MEM_VALUES: Sequence[float] = [1.0]
+P_SWAP_VALUES: Sequence[float] = [0.4]
 LINK_FIDELITY = 0.95
 PSW_THRESHOLD = 0.94
 NODES = 50
 REQUESTS = 5
-SIM_TIME = 60  # seconds
+SIM_TIME = 5  # seconds
 F_REQ = 0.8
-SEEDS: Sequence[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-RUNS_PER_SEED = 10
+# SEEDS: Sequence[int] = [0, 1, 2, 3, 4]
+SEEDS: Sequence[int] = [0]
+# SEEDS: Sequence[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+RUNS_PER_SEED = 1
+# RUNS_PER_SEED = 10
 GEN_RATE = 50
 MEMORY_CAPACITY = 5
 WAXMAN_SIZE = 100000
@@ -235,8 +239,8 @@ def _plot_avg_wait(out_png: Path, summary_rows: List[Dict[str, Any]]) -> None:
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.plot(t_list, ys_off, marker="o", label="PSW off")
     ax.plot(t_list, ys_on, marker="o", label="PSW on")
-    ax.set_xlabel("t_mem")
-    ax.set_ylabel("avg_wait (slots)")
+    ax.set_xlabel("t_mem [/s]")
+    ax.set_ylabel("avg_wait [slots]")
     ax.set_title("PSW on/off avg_wait")
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.3)
@@ -255,83 +259,86 @@ def main() -> int:
             logging.StreamHandler(),
         ],
     )
+    logging.getLogger("qns").setLevel(logging.DEBUG)
+    logging.getLogger("edp").setLevel(logging.DEBUG)
     logging.info("開始: exp_name=%s", EXP_NAME)
 
     summary_rows: List[Dict[str, Any]] = []
     raw_rows: List[Dict[str, Any]] = []
 
     for t_mem in T_MEM_VALUES:
-        for enable_psw in (False, True):
-            for seed in SEEDS:
-                for run_index in range(RUNS_PER_SEED):
-                    logging.info(
-                        "シナリオ t_mem=%.3f enable_psw=%s seed=%s run_index=%s",
-                        t_mem,
-                        enable_psw,
-                        seed,
-                        run_index,
-                    )
-                    try:
-                        metrics = _run_single(
-                            t_mem=float(t_mem),
-                            p_swap=P_SWAP,
-                            link_fidelity=LINK_FIDELITY,
-                            psw_threshold=PSW_THRESHOLD,
-                            seed=seed,
-                            enable_psw=enable_psw,
+        for p_swap in P_SWAP_VALUES:
+            for enable_psw in (False, True):
+                for seed in SEEDS:
+                    for run_index in range(RUNS_PER_SEED):
+                        logging.info(
+                            "シナリオ t_mem=%.3f enable_psw=%s seed=%s run_index=%s",
+                            t_mem,
+                            enable_psw,
+                            seed,
+                            run_index,
                         )
-                        summary = _summarize(metrics)
-                        summary.update(
-                            {
-                                "exp_name": EXP_NAME,
-                                "t_mem": t_mem,
-                                "p_swap": P_SWAP,
-                                "link_fidelity": LINK_FIDELITY,
-                                "psw_threshold": PSW_THRESHOLD,
-                                "enable_psw": enable_psw,
-                                "seed": seed,
-                                "run_index": run_index,
-                                "status": "ok",
-                                "error_type": None,
-                                "error_message": None,
-                            }
-                        )
-                        summary_rows.append(summary)
-                        for req in metrics["completed_requests"]:
-                            raw_rows.append(
+                        try:
+                            metrics = _run_single(
+                                t_mem=float(t_mem),
+                                p_swap=p_swap,
+                                link_fidelity=LINK_FIDELITY,
+                                psw_threshold=PSW_THRESHOLD,
+                                seed=seed,
+                                enable_psw=enable_psw,
+                            )
+                            summary = _summarize(metrics)
+                            summary.update(
                                 {
+                                    "exp_name": EXP_NAME,
                                     "t_mem": t_mem,
-                                    "p_swap": P_SWAP,
+                                    "p_swap": p_swap,
                                     "link_fidelity": LINK_FIDELITY,
                                     "psw_threshold": PSW_THRESHOLD,
                                     "enable_psw": enable_psw,
                                     "seed": seed,
                                     "run_index": run_index,
-                                    "request_index": req.get("index"),
-                                    "request_name": req.get("name"),
-                                    "finish_time": req.get("finish_time"),
-                                    "fidelity": req.get("fidelity"),
+                                    "status": "ok",
+                                    "error_type": None,
+                                    "error_message": None,
                                 }
                             )
-                    except Exception as exc:  # noqa: BLE001
-                        logging.exception(
-                            "シナリオ失敗 t_mem=%s enable_psw=%s", t_mem, enable_psw
-                        )
-                        summary_rows.append(
-                            {
-                                "exp_name": EXP_NAME,
-                                "t_mem": t_mem,
-                                "p_swap": P_SWAP,
-                                "link_fidelity": LINK_FIDELITY,
-                                "psw_threshold": PSW_THRESHOLD,
-                                "enable_psw": enable_psw,
-                                "seed": seed,
-                                "run_index": run_index,
-                                "status": "error",
-                                "error_type": type(exc).__name__,
-                                "error_message": str(exc),
-                            }
-                        )
+                            summary_rows.append(summary)
+                            for req in metrics["completed_requests"]:
+                                raw_rows.append(
+                                    {
+                                        "t_mem": t_mem,
+                                        "p_swap": p_swap,
+                                        "link_fidelity": LINK_FIDELITY,
+                                        "psw_threshold": PSW_THRESHOLD,
+                                        "enable_psw": enable_psw,
+                                        "seed": seed,
+                                        "run_index": run_index,
+                                        "request_index": req.get("index"),
+                                        "request_name": req.get("name"),
+                                        "finish_time": req.get("finish_time"),
+                                        "fidelity": req.get("fidelity"),
+                                    }
+                                )
+                        except Exception as exc:  # noqa: BLE001
+                            logging.exception(
+                                "シナリオ失敗 t_mem=%s enable_psw=%s", t_mem, enable_psw
+                            )
+                            summary_rows.append(
+                                {
+                                    "exp_name": EXP_NAME,
+                                    "t_mem": t_mem,
+                                    "p_swap": p_swap,
+                                    "link_fidelity": LINK_FIDELITY,
+                                    "psw_threshold": PSW_THRESHOLD,
+                                    "enable_psw": enable_psw,
+                                    "seed": seed,
+                                    "run_index": run_index,
+                                    "status": "error",
+                                    "error_type": type(exc).__name__,
+                                    "error_message": str(exc),
+                                }
+                            )
 
     # CSV出力
     summary_headers = [

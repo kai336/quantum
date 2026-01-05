@@ -1,3 +1,0 @@
-Excluded t_mem=0.1 and plotted avg_wait for PSW on/off.
-Source: out/20260102_030822_psw_boundary_tmem_095_step0p1/summary.csv
-Output: out/20260102_030822_psw_boundary_tmem_095_step0p1_filtered_tmem_gt0p1_en_20260103_001659/plots/avg_wait_on_off_en.png

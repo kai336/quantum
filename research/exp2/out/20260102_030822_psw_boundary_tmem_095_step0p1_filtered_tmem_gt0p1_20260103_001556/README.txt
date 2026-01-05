@@ -1,3 +1,0 @@
-t_mem=0.1を除外し、avg_waitをPSW有無で比較したプロットを生成しました。
-元データ: out/20260102_030822_psw_boundary_tmem_095_step0p1/summary.csv
-出力: out/20260102_030822_psw_boundary_tmem_095_step0p1_filtered_tmem_gt0p1_20260103_001556/plots/avg_wait_on_off.png

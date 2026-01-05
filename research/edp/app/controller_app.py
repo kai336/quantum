@@ -93,7 +93,7 @@ class ControllerApp(Application):
         # self.fidelity: List[float] = []  # i番目のqcで生成されるlinkのフィデリティ初期値
         self.nodes: List[QNode] | None = None
         self.completed_requests: List[dict] = []
-        self.gen_interval_slot: int = self._calc_gen_interval_slot()
+        self.gen_interval_slot: int
         self._next_gen_time_slot: int | None = (
             None  # gen_rateに応じてリンクレベルEP生成するため
         )
@@ -118,6 +118,7 @@ class ControllerApp(Application):
         self.node = node
         assert isinstance(node.network, QuantumNetwork)
         self.net = node.network
+        self.gen_interval_slot = self._calc_gen_interval_slot()
 
         # self.nodesでネットワーク上のノードを管理
         self.nodes = node.network.nodes.copy()
@@ -569,7 +570,7 @@ class ControllerApp(Application):
             )
             return 1
         t = 1 / self.gen_rate
-        interval = Time(t)
+        interval = Time(sec=t, accuracy=self._simulator.accuracy)
         if interval.time_slot <= 0:
             return 1
 
