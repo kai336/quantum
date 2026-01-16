@@ -314,7 +314,7 @@ class ControllerApp(Application):
         for link in list(self.links):  # 途中でリンクが削除されても安全に回す
             self.fid_update_EP(ep=link, dt=dt)  # フィデリティ更新
             if link.fidelity < self.f_cut:  # f_cut以下のもつれを切り捨てる
-                log.logger.info(f"{self._simulator.tc} decoherenced link {link.nodes}")
+                log.logger.debug(f"{self._simulator.tc} decoherenced link {link.nodes}")
                 self.decoherence_EP(link)
         if self.enable_psw and self.psw_threshold is not None:
             self._scan_psw_targets()
@@ -629,7 +629,7 @@ class ControllerApp(Application):
                 if self._has_pending_psw(op):
                     continue
                 parent_type = op.parent.type.name if op.parent is not None else "NONE"
-                log.logger.info(
+                log.logger.debug(
                     f"{self._simulator.tc} PSW target found op={op} parent={parent_type} fid={waiting_ep.fidelity:.3f} threshold={self.psw_threshold}"  # noqa: E501
                 )
                 self._schedule_psw_op(target_op=op)
@@ -712,7 +712,7 @@ class ControllerApp(Application):
         for op in ops:
             op.request = psw_req
         self.requests.append(psw_req)
-        log.logger.info(
+        log.logger.debug(
             f"{self._simulator.tc} PSW schedule target={target_op} root={root_op}"
         )
         self._register_psw_group(
@@ -734,7 +734,7 @@ class ControllerApp(Application):
             or target_ep is None
             or not self._is_psw_waiting(target_op)
         ):
-            log.logger.info(
+            log.logger.debug(
                 f"{self._simulator.tc} PSW cancelled before purify target={target_op}"
             )
             if sacrificial_ep is not None:
@@ -742,7 +742,7 @@ class ControllerApp(Application):
             target_op.threshold_purified = False
             self.psw_cancelled += 1
             return
-        log.logger.info(
+        log.logger.debug(
             f"{self._simulator.tc} PSW purify start target={target_op} target_fid={target_ep.fidelity:.3f} sacrificial_fid={sacrificial_ep.fidelity:.3f}"  # noqa: E501
         )
         name = f"PSW_PURIFY({target_op.n1.name}-{target_op.n2.name})"
@@ -808,7 +808,7 @@ class ControllerApp(Application):
         if meta is not None and meta.get("role") == "sacrificial":
             target = meta.get("target")
             self._cleanup_psw_group(op)
-            log.logger.info(
+            log.logger.debug(
                 f"{self._simulator.tc} PSW sacrificial ready op={op} target={target}"
             )
             if target is not None:
@@ -846,7 +846,7 @@ class ControllerApp(Application):
                     target.ep = ep_target
                     target.threshold_purified = True
                 self._cleanup_psw_group(op)
-                log.logger.info(
+                log.logger.debug(
                     f"{self._simulator.tc} PSW purify success op={op} target={target}"
                 )
                 op.done()
@@ -875,7 +875,7 @@ class ControllerApp(Application):
                     target.threshold_purified = True
                     target.request_regen()
                 self._cleanup_psw_group(op)
-                log.logger.info(
+                log.logger.debug(
                     f"{self._simulator.tc} PSW purify failed op={op} target={target}"
                 )
                 op.request_regen()

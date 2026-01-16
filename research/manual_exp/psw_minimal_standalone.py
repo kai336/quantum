@@ -34,7 +34,7 @@ from qns.simulator.simulator import Simulator
 from qns.utils.rnd import set_seed
 
 # === パラメタ（ここを書き換えるだけ） ===
-EXP_NAME = "t_mem sweep 0.02-0.1sec"
+EXP_NAME = "t_mem sweep 1-5sec"
 T_MEM_VALUES: Sequence[float] = [5.0, 4.0, 3.0, 2.0, 1.0]
 P_SWAP = 0.4
 LINK_FIDELITY = 0.95
@@ -43,8 +43,8 @@ NODES = 50
 REQUESTS = 5
 SIM_TIME = 60  # seconds
 F_REQ = 0.8
-SEEDS: Sequence[int] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-RUNS_PER_SEED = 10
+SEEDS: Sequence[int] = list(range(20))
+RUNS_PER_SEED = 5
 GEN_RATE = 50
 MEMORY_CAPACITY = 5
 WAXMAN_SIZE = 100000

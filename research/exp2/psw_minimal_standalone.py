@@ -99,6 +99,12 @@ def _safe_div(numer: float, denom: float) -> float | None:
     return numer / denom
 
 
+def _mean_or_none(values: Sequence[float] | None) -> float | None:
+    if not values:
+        return None
+    return mean(values)
+
+
 # === シミュレーション本体 ===
 def _run_single(
     *,
@@ -224,32 +230,93 @@ def _write_csv(
             )
 
 
+def _group_metric(
+    summary_rows: List[Dict[str, Any]], metric_key: str
+) -> Dict[Tuple[float, bool], List[float]]:
+    grouped: Dict[Tuple[float, bool], List[float]] = {}
+    for row in summary_rows:
+        if row.get("status") == "error":
+            continue
+        if row.get(metric_key) is None:
+            continue
+        key = (float(row["t_mem"]), bool(row["enable_psw"]))
+        grouped.setdefault(key, []).append(float(row[metric_key]))
+    return grouped
+
+
 def _plot_avg_wait(out_png: Path, summary_rows: List[Dict[str, Any]]) -> None:
     import matplotlib.pyplot as plt
+    import math
 
-    by_t: Dict[Tuple[float, bool], List[float]] = {}
-    for row in summary_rows:
-        if row.get("avg_wait") is None:
-            continue
-        key = (row["t_mem"], row["enable_psw"])
-        by_t.setdefault(key, []).append(float(row["avg_wait"]))
-
+    by_t = _group_metric(summary_rows, "avg_wait")
     t_list = sorted({k[0] for k in by_t})
-    ys_on = [
-        mean(by_t.get((t, True), [])) if by_t.get((t, True)) else None for t in t_list
-    ]
-    ys_off = [
-        mean(by_t.get((t, False), [])) if by_t.get((t, False)) else None for t in t_list
-    ]
+    ys_on = [_mean_or_none(by_t.get((t, True))) for t in t_list]
+    ys_off = [_mean_or_none(by_t.get((t, False))) for t in t_list]
 
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(t_list, ys_off, marker="o", label="PSW off")
-    ax.plot(t_list, ys_on, marker="o", label="PSW on")
+    x = list(range(len(t_list)))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar([i - width / 2 for i in x], [y if y is not None else math.nan for y in ys_off], width, label="PSW off")
+    ax.bar([i + width / 2 for i in x], [y if y is not None else math.nan for y in ys_on], width, label="PSW on")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{t:g}" for t in t_list])
     ax.set_xlabel("t_mem")
     ax.set_ylabel("avg_wait (slots)")
     ax.set_title("PSW on/off avg_wait")
     ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.3)
+    ax.grid(True, axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_png)
+    plt.close(fig)
+
+
+def _plot_finished(out_png: Path, summary_rows: List[Dict[str, Any]]) -> None:
+    import matplotlib.pyplot as plt
+    import math
+
+    by_t = _group_metric(summary_rows, "finished")
+    t_list = sorted({k[0] for k in by_t})
+    ys_on = [_mean_or_none(by_t.get((t, True))) for t in t_list]
+    ys_off = [_mean_or_none(by_t.get((t, False))) for t in t_list]
+
+    x = list(range(len(t_list)))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar([i - width / 2 for i in x], [y if y is not None else math.nan for y in ys_off], width, label="PSW off")
+    ax.bar([i + width / 2 for i in x], [y if y is not None else math.nan for y in ys_on], width, label="PSW on")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{t:g}" for t in t_list])
+    ax.set_xlabel("t_mem")
+    ax.set_ylabel("completed requests")
+    ax.set_title("PSW on/off completed requests")
+    ax.legend()
+    ax.grid(True, axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_png)
+    plt.close(fig)
+
+
+def _plot_final_fidelity(out_png: Path, summary_rows: List[Dict[str, Any]]) -> None:
+    import matplotlib.pyplot as plt
+    import math
+
+    by_t = _group_metric(summary_rows, "final_fidelity_mean")
+    t_list = sorted({k[0] for k in by_t})
+    ys_on = [_mean_or_none(by_t.get((t, True))) for t in t_list]
+    ys_off = [_mean_or_none(by_t.get((t, False))) for t in t_list]
+
+    x = list(range(len(t_list)))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar([i - width / 2 for i in x], [y if y is not None else math.nan for y in ys_off], width, label="PSW off")
+    ax.bar([i + width / 2 for i in x], [y if y is not None else math.nan for y in ys_on], width, label="PSW on")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{t:g}" for t in t_list])
+    ax.set_xlabel("t_mem")
+    ax.set_ylabel("final fidelity (mean)")
+    ax.set_title("PSW on/off final fidelity")
+    ax.legend()
+    ax.grid(True, axis="y", linestyle="--", alpha=0.3)
     fig.tight_layout()
     fig.savefig(out_png)
     plt.close(fig)
@@ -388,9 +455,25 @@ def main() -> int:
     try:
         _plot_avg_wait(run_dir / "plots" / "avg_wait_onoff.png", summary_rows)
     except Exception:
-        logging.exception("プロット生成に失敗しました")
-        (run_dir / "plots" / "placeholder.txt").write_text(
-            "プロット生成に失敗しました。\n", encoding="utf-8"
+        logging.exception("avg_waitプロット生成に失敗しました")
+        (run_dir / "plots" / "avg_wait_onoff_failed.txt").write_text(
+            "Failed to generate avg_wait plot.\n", encoding="utf-8"
+        )
+    try:
+        _plot_finished(run_dir / "plots" / "finished_onoff.png", summary_rows)
+    except Exception:
+        logging.exception("finishedプロット生成に失敗しました")
+        (run_dir / "plots" / "finished_onoff_failed.txt").write_text(
+            "Failed to generate finished plot.\n", encoding="utf-8"
+        )
+    try:
+        _plot_final_fidelity(
+            run_dir / "plots" / "final_fidelity_onoff.png", summary_rows
+        )
+    except Exception:
+        logging.exception("final_fidelityプロット生成に失敗しました")
+        (run_dir / "plots" / "final_fidelity_onoff_failed.txt").write_text(
+            "Failed to generate final_fidelity plot.\n", encoding="utf-8"
         )
 
     logging.info("完了 run_dir=%s", run_dir)
